@@ -22,6 +22,7 @@ import org.apache.shenyu.disruptor.event.DataEvent;
 import org.apache.shenyu.disruptor.event.OrderlyDataEvent;
 import org.apache.shenyu.disruptor.thread.OrderlyExecutor;
 
+import java.util.Objects;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -48,7 +49,7 @@ public class QueueConsumer<T> implements WorkHandler<DataEvent<T>> {
     
     @Override
     public void onEvent(final DataEvent<T> t) {
-        if (t != null) {
+        if (Objects.nonNull(t)) {
             ThreadPoolExecutor executor = orderly(t);
             QueueConsumerExecutor<T> queueConsumerExecutor = factory.create();
             queueConsumerExecutor.setData(t.getData());
@@ -67,6 +68,6 @@ public class QueueConsumer<T> implements WorkHandler<DataEvent<T>> {
     }
     
     private boolean isEmpty(final String t) {
-        return t == null || t.isEmpty();
+        return Objects.isNull(t) || t.isEmpty();
     }
 }

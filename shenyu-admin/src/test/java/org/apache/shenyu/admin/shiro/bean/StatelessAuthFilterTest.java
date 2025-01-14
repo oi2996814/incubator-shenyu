@@ -27,13 +27,14 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.http.HttpMethod;
 
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -60,13 +61,13 @@ public final class StatelessAuthFilterTest {
     @Test
     public void testIsAccessAllowed() {
         Object obj = mock(Object.class);
-        assertEquals(false, statelessAuthFilter.isAccessAllowed(httpServletRequest, httpServletResponse, obj));
+        assertFalse(statelessAuthFilter.isAccessAllowed(httpServletRequest, httpServletResponse, obj));
     }
     
     @Test
     public void testOnAccessDenied() throws Exception {
         when(httpServletRequest.getMethod()).thenReturn(HttpMethod.OPTIONS.name());
-        assertEquals(true, statelessAuthFilter.onAccessDenied(httpServletRequest, httpServletResponse));
+        assertTrue(statelessAuthFilter.onAccessDenied(httpServletRequest, httpServletResponse));
     }
     
     @Test

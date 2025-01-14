@@ -17,10 +17,10 @@
 
 package org.apache.shenyu.sync.data.etcd;
 
+import io.etcd.jetcd.ByteSequence;
 import io.etcd.jetcd.Client;
 import io.etcd.jetcd.KeyValue;
 import io.etcd.jetcd.Watch;
-import io.etcd.jetcd.ByteSequence;
 import io.etcd.jetcd.options.GetOption;
 import io.etcd.jetcd.options.WatchOption;
 import io.etcd.jetcd.watch.WatchEvent;
@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
@@ -53,6 +54,8 @@ public class EtcdClient {
     private final Client client;
 
     private final ConcurrentHashMap<String, Watch.Watcher> watchCache = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, Watch.Watcher> watchChildCache = new ConcurrentHashMap<>();
 
     public EtcdClient(final Client client) {
         this.client = client;
@@ -76,13 +79,13 @@ public class EtcdClient {
         try {
             keyValues = client.getKVClient().get(bytesOf(key)).get().getKvs();
         } catch (InterruptedException | ExecutionException e) {
-            LOG.error(e.getMessage(), e);
+            LOG.error("get key error, key:{}", key, e);
         }
 
         if (CollectionUtils.isEmpty(keyValues)) {
+            LOG.warn("get key {} is empty", key);
             return null;
         }
-
         return keyValues.iterator().next().getValue().toString(UTF_8);
     }
 
@@ -101,7 +104,7 @@ public class EtcdClient {
                     .get().getKvs().stream()
                     .collect(Collectors.toMap(e -> e.getKey().toString(UTF_8), e -> e.getValue().toString(UTF_8)));
         } catch (ExecutionException | InterruptedException e) {
-            LOG.error("etcd getKeysMapByPrefix key {} error {}", prefix, e);
+            LOG.error("etcd getKeysMapByPrefix key {} error", prefix, e);
             throw new ShenyuException(e);
         }
 
@@ -141,7 +144,7 @@ public class EtcdClient {
         return keyValues.stream()
                 .map(e -> getSubNodeKeyName(prefix, e.getKey().toString(UTF_8), separator))
                 .distinct()
-                .filter(e -> Objects.nonNull(e))
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
@@ -159,7 +162,7 @@ public class EtcdClient {
                 .filter(e -> e.getKey().contains(prefix))
                 .map(e -> getSubNodeKeyName(prefix, e.getKey(), separator))
                 .distinct()
-                .filter(e -> Objects.nonNull(e))
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
@@ -182,8 +185,10 @@ public class EtcdClient {
                                 final BiConsumer<String, String> updateHandler,
                                 final Consumer<String> deleteHandler) {
         Watch.Listener listener = watch(updateHandler, deleteHandler);
-        Watch.Watcher watch = client.getWatchClient().watch(ByteSequence.from(key, UTF_8), listener);
-        watchCache.put(key, watch);
+        if (!watchCache.containsKey(key)) {
+            Watch.Watcher watch = client.getWatchClient().watch(ByteSequence.from(key, UTF_8), listener);
+            watchCache.put(key, watch);
+        }
     }
 
     /**
@@ -200,8 +205,10 @@ public class EtcdClient {
         WatchOption option = WatchOption.newBuilder()
                 .withPrefix(ByteSequence.from(key, UTF_8))
                 .build();
-        Watch.Watcher watch = client.getWatchClient().watch(ByteSequence.from(key, UTF_8), option, listener);
-        watchCache.put(key, watch);
+        if (!watchChildCache.containsKey(key)) {
+            Watch.Watcher watch = client.getWatchClient().watch(ByteSequence.from(key, UTF_8), option, listener);
+            watchChildCache.put(key, watch);
+        }
     }
 
     private Watch.Listener watch(final BiConsumer<String, String> updateHandler,
@@ -212,15 +219,18 @@ public class EtcdClient {
                 String value = event.getKeyValue().getValue().toString(UTF_8);
                 switch (event.getEventType()) {
                     case PUT:
-                        updateHandler.accept(path, value);
+                        Optional.ofNullable(updateHandler).ifPresent(handler -> handler.accept(path, value));
                         continue;
                     case DELETE:
-                        deleteHandler.accept(path);
+                        Optional.ofNullable(deleteHandler).ifPresent(handler -> handler.accept(path));
                         continue;
                     default:
                 }
             }
-        });
+        }, throwable -> {
+                LOG.error("etcd watch error {}", throwable.getMessage(), throwable);
+                throw new ShenyuException(throwable);
+            });
     }
 
     /**
@@ -232,6 +242,10 @@ public class EtcdClient {
         if (watchCache.containsKey(key)) {
             watchCache.get(key).close();
             watchCache.remove(key);
+        }
+        if (watchChildCache.containsKey(key)) {
+            watchChildCache.get(key).close();
+            watchChildCache.remove(key);
         }
     }
 }

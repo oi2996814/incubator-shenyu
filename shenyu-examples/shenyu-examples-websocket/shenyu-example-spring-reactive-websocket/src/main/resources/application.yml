@@ -19,6 +19,7 @@ server:
 
 
 shenyu:
+  namespace: 649330b6-c2d7-4edc-be8e-8a54df9eb385
   register:
     registerType: http
     serverLists: http://localhost:9095
@@ -31,14 +32,31 @@ shenyu:
         contextPath: /ws-reactive
         appName: ws-reactive
         port: 8004
+  #  discovery:
+  #    enable: true
+  #    type: zookeeper
+  #    serverList: 127.0.0.1:2181
+  #    registerPath: /shenyu/discovery/http_example
+  #    props:
+  #      baseSleepTimeMilliseconds: 1000
+  #      maxRetries: 4
+  #      maxSleepTimeMilliseconds: 5000
+  #      connectionTimeoutMilliseconds: 60000
+  #      sessionTimeoutMilliseconds: 8
+  #    type: etcd
+  #    serverList: http://127.0.0.1:2379
+  #    registerPath: shenyu_discovery_http_example
+  #    type: eureka
+  #    serverList: http://127.0.0.1:8761/eureka
+  #    registerPath: shenyu_discovery_http_example
 
 
 logging:
   level:
-    root: info
-    org.springframework.boot: info
-    org.apache.ibatis: info
-    org.apache.shenyu.bonuspoint: info
+    root: debug
+    org.springframework.boot: debug
+    org.apache.ibatis: debug
+    org.apache.shenyu.bonuspoint: debug
     org.apache.shenyu.lottery: debug
     org.apache.shenyu: debug
 

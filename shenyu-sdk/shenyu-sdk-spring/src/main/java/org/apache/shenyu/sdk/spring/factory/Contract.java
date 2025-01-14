@@ -20,6 +20,7 @@ package org.apache.shenyu.sdk.spring.factory;
 import org.apache.shenyu.sdk.core.common.RequestTemplate;
 import org.apache.shenyu.sdk.core.util.Types;
 import org.apache.shenyu.sdk.core.util.Util;
+import org.apache.shenyu.sdk.spring.ShenyuClientFactoryBean;
 import org.springframework.context.ResourceLoaderAware;
 
 import java.lang.annotation.Annotation;
@@ -32,6 +33,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.apache.shenyu.sdk.core.util.Util.checkState;
 
@@ -44,10 +46,11 @@ public interface Contract extends ResourceLoaderAware {
     /**
      * parseAndValidateMetadata.
      *
-     * @param targetType targetType
+     * @param targetType              targetType
+     * @param shenyuClientFactoryBean shenyuClientFactoryBean
      * @return {@link List}
      */
-    List<RequestTemplate> parseAndValidateRequestTemplate(Class<?> targetType);
+    List<RequestTemplate> parseAndValidateRequestTemplate(Class<?> targetType, ShenyuClientFactoryBean shenyuClientFactoryBean);
 
     /**
      * BaseContract.
@@ -55,7 +58,7 @@ public interface Contract extends ResourceLoaderAware {
     abstract class BaseContract implements Contract {
 
         @Override
-        public List<RequestTemplate> parseAndValidateRequestTemplate(final Class<?> targetType) {
+        public List<RequestTemplate> parseAndValidateRequestTemplate(final Class<?> targetType, final ShenyuClientFactoryBean shenyuClientFactoryBean) {
             checkState(targetType.getTypeParameters().length == 0, "Parameterized types unsupported: %s",
                     targetType.getSimpleName());
             checkState(targetType.getInterfaces().length <= 1, "Only single inheritance supported: %s",
@@ -67,7 +70,7 @@ public interface Contract extends ResourceLoaderAware {
                         || Util.isDefault(method)) {
                     continue;
                 }
-                final RequestTemplate parseRequestTemplate = parseRequestTemplate(method);
+                final RequestTemplate parseRequestTemplate = parseRequestTemplate(method, shenyuClientFactoryBean);
 
                 // paramMetadata
                 parseRequestTemplate.setParamMetadataList(analysisParamMetadata(method));
@@ -102,7 +105,7 @@ public interface Contract extends ResourceLoaderAware {
             List<RequestTemplate.ParamMetadata> params = new ArrayList<>(parameters.length);
             for (int index = 0; index < parameters.length; index++) {
                 Annotation[] annotations = parameters[index].getAnnotations();
-                if (annotations == null || annotations.length == 0) {
+                if (Objects.isNull(annotations) || annotations.length == 0) {
                     continue;
                 }
                 params.add(new RequestTemplate.ParamMetadata(annotations, parameters[index].getType(), index));
@@ -113,10 +116,11 @@ public interface Contract extends ResourceLoaderAware {
         /**
          * parseRequestTemplate.
          *
-         * @param method method
+         * @param method                  method
+         * @param shenyuClientFactoryBean shenyuClientFactoryBean
          * @return {@link RequestTemplate}
          */
-        public abstract RequestTemplate parseRequestTemplate(Method method);
+        public abstract RequestTemplate parseRequestTemplate(Method method, ShenyuClientFactoryBean shenyuClientFactoryBean);
     }
 
 }

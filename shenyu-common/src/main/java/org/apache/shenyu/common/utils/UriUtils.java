@@ -26,9 +26,9 @@ import java.util.Objects;
  * uri util.
  */
 public class UriUtils {
-    
+
     private static final String PRE_FIX = "/";
-    
+
     /**
      * create URI {@link URI}.
      *
@@ -41,7 +41,19 @@ public class UriUtils {
         }
         return null;
     }
-    
+
+    /**
+     * create URI {@link URI}.
+     *
+     * @param scheme    scheme eg:http
+     * @param authority registry or server eg: 127.0.0.1:8080
+     * @param path      path eg:/ fallback
+     * @return created {@link URI} from uri
+     */
+    public static URI createUri(final String scheme, final String authority, final String path) {
+        return createUri(scheme + "://" + authority + repairData(path));
+    }
+
     /**
      * Repair data string.
      *
@@ -51,7 +63,7 @@ public class UriUtils {
     public static String repairData(final String name) {
         return name.startsWith(PRE_FIX) ? name : PRE_FIX + name;
     }
-    
+
     /**
      * Remove prefix string.
      *
@@ -73,14 +85,14 @@ public class UriUtils {
             return StringUtils.EMPTY;
         }
         String params = StringUtils.isEmpty(uri.getQuery()) ? "" : "?" + uri.getQuery();
-        return uri.getPath() + params;
+        return uri.getRawPath() + params;
     }
 
     /**
      * appendScheme.
      *
      * @param scheme scheme
-     * @param url url
+     * @param url    url
      * @return {@link String}
      */
     public static String appendScheme(final String url, final String scheme) {
@@ -89,5 +101,26 @@ public class UriUtils {
             schemeUrl = scheme + "://" + schemeUrl;
         }
         return schemeUrl;
+    }
+
+    /**
+     * get actual port.
+     *
+     * @param scheme scheme eg:http
+     * @param port   port
+     * @return {@link int}
+     */
+    public static int getActualPort(final String scheme, final Integer port) {
+        Integer actualPort = port;
+        if (Objects.isNull(port) || port < 0) {
+            if (!"http".equals(scheme) && !"ws".equals(scheme)) {
+                if ("https".equals(scheme) || "wss".equals(scheme)) {
+                    actualPort = 443;
+                }
+            } else {
+                actualPort = 80;
+            }
+        }
+        return actualPort;
     }
 }

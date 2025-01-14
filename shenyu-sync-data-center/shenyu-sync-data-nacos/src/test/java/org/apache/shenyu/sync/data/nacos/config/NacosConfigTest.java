@@ -23,8 +23,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * add test case for {@link NacosConfig}.
@@ -39,6 +38,8 @@ public final class NacosConfigTest {
 
     private static final String USERNAME = "username";
 
+    private static final String CONTEXT_PATH = "nacos";
+
     private static final NacosACMConfig ACM = new NacosACMConfig();
 
     private NacosConfig nacosConfig;
@@ -52,12 +53,14 @@ public final class NacosConfigTest {
         nacosConfig.setNamespace(NAMESPACE);
         nacosConfig.setPassword(PASSWORD);
         nacosConfig.setUsername(USERNAME);
+        nacosConfig.setContextPath(CONTEXT_PATH);
         nacosConfig.setAcm(ACM);
         that = new NacosConfig();
         that.setUrl(URL);
         that.setNamespace(NAMESPACE);
         that.setPassword(PASSWORD);
         that.setUsername(USERNAME);
+        that.setContextPath(CONTEXT_PATH);
         that.setAcm(ACM);
     }
 
@@ -67,21 +70,22 @@ public final class NacosConfigTest {
         assertEquals(NAMESPACE, nacosConfig.getNamespace());
         assertEquals(PASSWORD, nacosConfig.getPassword());
         assertEquals(USERNAME, nacosConfig.getUsername());
+        assertEquals(CONTEXT_PATH, nacosConfig.getContextPath());
         assertEquals(ACM, nacosConfig.getAcm());
     }
 
     @Test
     public void testEquals() {
-        assertTrue(nacosConfig.equals(nacosConfig));
-        assertTrue(nacosConfig.equals(that));
-        assertFalse(nacosConfig.equals(null));
-        assertFalse(nacosConfig.equals(new Object()));
+        assertEquals(nacosConfig, nacosConfig);
+        assertEquals(nacosConfig, that);
+        assertNotEquals(null, nacosConfig);
+        assertNotEquals(nacosConfig, new Object());
     }
 
     @Test
     public void testHashCode() {
         assertEquals(Objects.hash(nacosConfig.getUrl(), nacosConfig.getNamespace(),
-                        nacosConfig.getUsername(), nacosConfig.getPassword(), nacosConfig.getAcm()),
+                        nacosConfig.getUsername(), nacosConfig.getPassword(), nacosConfig.getContextPath(), nacosConfig.getAcm()),
                 nacosConfig.hashCode());
     }
 }

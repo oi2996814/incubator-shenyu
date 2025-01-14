@@ -38,4 +38,16 @@ public @interface ApiDoc {
      * @return String
      */
     String desc();
+
+    /**
+     * tags.
+     * @return tags
+     */
+    String[] tags() default "";
+
+    /**
+     * control whether it is necessary to generate in admin.
+     * @return generated
+     */
+    boolean generated() default true;
 }

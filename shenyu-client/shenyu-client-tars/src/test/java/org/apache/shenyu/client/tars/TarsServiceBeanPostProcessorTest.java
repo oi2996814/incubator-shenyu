@@ -21,9 +21,11 @@ import org.apache.shenyu.client.core.exception.ShenyuClientIllegalArgumentExcept
 import org.apache.shenyu.client.core.register.ShenyuClientRegisterRepositoryFactory;
 import org.apache.shenyu.client.tars.common.annotation.ShenyuTarsClient;
 import org.apache.shenyu.client.tars.common.annotation.ShenyuTarsService;
+import org.apache.shenyu.common.enums.RpcTypeEnum;
 import org.apache.shenyu.register.client.api.ShenyuClientRegisterRepository;
 import org.apache.shenyu.register.client.http.utils.RegisterUtils;
-import org.apache.shenyu.register.common.config.PropertiesConfig;
+import org.apache.shenyu.register.common.config.ShenyuClientConfig;
+import org.apache.shenyu.register.common.config.ShenyuClientConfig.ClientPropertiesConfig;
 import org.apache.shenyu.register.common.config.ShenyuRegisterCenterConfig;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,11 +78,9 @@ public final class TarsServiceBeanPostProcessorTest {
         results.put("tarsDemoService3", tarsDemoService3);
         when(applicationContext.getBeansWithAnnotation(any())).thenReturn(results);
         contextRefreshedEvent = new ContextRefreshedEvent(applicationContext);
-
-        Properties properties = mock(Properties.class);
-        PropertiesConfig clientConfig = mock(PropertiesConfig.class);
-        when(clientConfig.getProps()).thenReturn(properties);
-        Assert.assertThrows(ShenyuClientIllegalArgumentException.class, () -> new TarsServiceBeanEventListener(clientConfig, mock(ShenyuClientRegisterRepository.class)));
+        
+        ShenyuClientConfig shenyuClientConfig = mock(ShenyuClientConfig.class);
+        Assert.assertThrows(ShenyuClientIllegalArgumentException.class, () -> new TarsServiceBeanEventListener(shenyuClientConfig, mock(ShenyuClientRegisterRepository.class)));
     }
 
     @Test
@@ -108,27 +108,32 @@ public final class TarsServiceBeanPostProcessorTest {
         properties.setProperty("host", "localhost");
         properties.setProperty("username", "admin");
         properties.setProperty("password", "123456");
-        PropertiesConfig config = new PropertiesConfig();
-        config.setProps(properties);
 
         ShenyuRegisterCenterConfig mockRegisterCenter = new ShenyuRegisterCenterConfig();
         mockRegisterCenter.setServerLists("http://localhost:58080");
         mockRegisterCenter.setRegisterType("http");
         mockRegisterCenter.setProps(properties);
+        
+        ShenyuClientConfig clientConfig = new ShenyuClientConfig();
+        ClientPropertiesConfig clientPropertiesConfig = new ClientPropertiesConfig();
+        clientPropertiesConfig.setProps(properties);
+        Map<String, ClientPropertiesConfig> client = new LinkedHashMap<>();
+        client.put(RpcTypeEnum.TARS.getName(), clientPropertiesConfig);
+        clientConfig.setClient(client);
 
-        return new TarsServiceBeanEventListener(config, ShenyuClientRegisterRepositoryFactory.newInstance(mockRegisterCenter));
+        return new TarsServiceBeanEventListener(clientConfig, ShenyuClientRegisterRepositoryFactory.newInstance(mockRegisterCenter));
     }
 
     @ShenyuTarsService(serviceName = "testObj")
     static class TarsDemoService {
         @ShenyuTarsClient("hello")
         public String test(final String hello) {
-            return hello + "";
+            return hello;
         }
 
         @ShenyuTarsClient("hello2/*")
         public String test2(final String hello) {
-            return hello + "";
+            return hello;
         }
     }
 
@@ -136,7 +141,7 @@ public final class TarsServiceBeanPostProcessorTest {
     @ShenyuTarsClient("hello2/*")
     static class TarsDemoService2 {
         public String test(final String hello) {
-            return hello + "";
+            return hello;
         }
     }
 
@@ -144,7 +149,7 @@ public final class TarsServiceBeanPostProcessorTest {
     @ShenyuTarsClient
     static class TarsDemoService3 {
         public String test(final String hello) {
-            return hello + "";
+            return hello;
         }
     }
 }

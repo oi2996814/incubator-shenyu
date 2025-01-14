@@ -23,13 +23,13 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.apache.shenyu</groupId>
     <artifactId>shenyu-examples</artifactId>
-    <version>2.5.1-SNAPSHOT</version>
+    <version>2.7.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.6.8</version>
+        <version>3.2.0</version>
         <relativePath/>
     </parent>
 
@@ -37,12 +37,14 @@
         <maven-compiler-plugin.version>3.7.0</maven-compiler-plugin.version>
         <versions-maven-plugin.version>2.5</versions-maven-plugin.version>
         <docker-maven-plugin.version>0.40.1</docker-maven-plugin.version>
-        <maven-checkstyle-plugin.version>3.1.0</maven-checkstyle-plugin.version>
+        <maven-checkstyle-plugin.version>3.4.0</maven-checkstyle-plugin.version>
+        <swagger.version>2.6.0</swagger.version>
     </properties>
 
     <modules>
         <module>shenyu-examples-common</module>
         <module>shenyu-examples-http</module>
+        <module>shenyu-examples-http-swagger3</module>
         <module>shenyu-examples-https</module>
         <module>shenyu-examples-dubbo</module>
         <module>shenyu-examples-springcloud</module>
@@ -57,6 +59,16 @@
         <module>shenyu-examples-springmvc-tomcat</module>
         <module>shenyu-examples-sdk</module>
     </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${swagger.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>
@@ -79,6 +91,7 @@
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <version>${maven-checkstyle-plugin.version}</version>
                 <configuration>
+                    <consoleOutput>true</consoleOutput>
                     <configLocation>/../script/shenyu_checkstyle.xml</configLocation>
                     <headerLocation>/../script/checkstyle-header.txt</headerLocation>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>

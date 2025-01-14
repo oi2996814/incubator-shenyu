@@ -22,10 +22,12 @@ import org.apache.shenyu.admin.model.entity.RuleDO;
 import org.apache.shenyu.admin.model.query.RuleQuery;
 import org.apache.shenyu.common.utils.UUIDUtils;
 import org.junit.jupiter.api.Test;
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Random;
+
+import static org.apache.shenyu.common.constant.Constants.SYS_DEFAULT_NAMESPACE_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
@@ -199,9 +201,11 @@ public final class RuleMapperTest extends AbstractSpringIntegrationTest {
                 .loged(true)
                 .matchMode(1)
                 .selectorId("test-selector-1")
+                .matchRestful(false)
                 .sort(1)
                 .dateCreated(now)
                 .dateUpdated(now)
+                .namespaceId(SYS_DEFAULT_NAMESPACE_ID)
                 .build();
     }
 }

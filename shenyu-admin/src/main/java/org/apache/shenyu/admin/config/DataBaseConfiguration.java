@@ -65,6 +65,8 @@ public class DataBaseConfiguration {
         properties.setProperty("MySQL", "mysql");
         properties.setProperty("PostgreSQL", "postgresql");
         properties.setProperty("H2", "h2");
+        properties.setProperty("OpenGauss", "opengauss");
+        properties.setProperty("OceanBase", "oceanbase");
         VendorDatabaseIdProvider databaseIdProvider = new VendorDatabaseIdProvider();
         databaseIdProvider.setProperties(properties);
         return databaseIdProvider;

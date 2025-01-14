@@ -31,6 +31,7 @@ import org.apache.shenyu.admin.model.vo.PermissionMenuVO;
 import org.apache.shenyu.admin.service.impl.PermissionServiceImpl;
 import org.apache.shenyu.admin.spring.SpringBeanUtils;
 import org.apache.shenyu.admin.utils.JwtUtils;
+import org.apache.shenyu.common.constant.Constants;
 import org.apache.shenyu.common.constant.ResourceTypeConstants;
 import org.apache.shiro.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +56,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
@@ -85,6 +87,9 @@ public final class PermissionServiceTest {
     
     @Mock
     private DashboardProperties dashboardProperties;
+    
+    @Mock
+    private NamespacePluginService namespacePluginService;
     
     @BeforeEach
     public void setUp() throws Exception {
@@ -123,14 +128,14 @@ public final class PermissionServiceTest {
         when(mockDashboardUserMapper.selectByUserName("admin")).thenReturn(dashboardUserDO);
         when(mockUserRoleMapper.findByUserId("1")).thenReturn(Collections.singletonList(userRoleDO));
         when(mockPermissionMapper.findByObjectIds(Collections.singletonList("1346358560427216896"))).thenReturn(permissionDOS);
-//        when(mockResourceMapper.selectById("1346775491550474240")).thenReturn(resourceDO1);
-//        when(mockResourceMapper.selectById("1346776175553376256")).thenReturn(resourceDO2);
-//        when(mockResourceMapper.selectById("1346777157943259136")).thenReturn(resourceDO3);
-//        when(mockResourceMapper.selectById("1347053375029653504")).thenReturn(resourceDO4);
-//        when(mockResourceMapper.selectAll()).thenReturn(Arrays.asList(resourceDO1, resourceDO2, resourceDO3, resourceDO4));
+//        when(mockResourceMapper.selectByIdAndNamespaceId("1346775491550474240")).thenReturn(resourceDO1);
+//        when(mockResourceMapper.selectByIdAndNamespaceId("1346776175553376256")).thenReturn(resourceDO2);
+//        when(mockResourceMapper.selectByIdAndNamespaceId("1346777157943259136")).thenReturn(resourceDO3);
+//        when(mockResourceMapper.selectByIdAndNamespaceId("1347053375029653504")).thenReturn(resourceDO4);
+//        when(mockResourceMapper.selectAllByNamespaceId()).thenReturn(Arrays.asList(resourceDO1, resourceDO2, resourceDO3, resourceDO4));
         when(mockResourceMapper.selectByUserName("admin")).thenReturn(Arrays.asList(resourceDO2, resourceDO3, resourceDO1, resourceDO4));
         when(mockResourceMapper.selectByResourceType(ResourceTypeConstants.MENU_TYPE_2)).thenReturn(Collections.singletonList(resourceDO4));
-        permissionServiceImplUnderTest = new PermissionServiceImpl(mockPermissionMapper, mockResourceMapper, dashboardProperties);
+        permissionServiceImplUnderTest = new PermissionServiceImpl(mockPermissionMapper, mockResourceMapper, dashboardProperties, namespacePluginService);
     }
     
     @Test
@@ -149,9 +154,10 @@ public final class PermissionServiceTest {
             ),
                     Collections.singletonList(new PermissionMenuVO.AuthPerm("plugin:sign:modify", "SHENYU.BUTTON.PLUGIN.SYNCHRONIZE", null)),
                     Collections.singletonList(new PermissionMenuVO.AuthPerm("plugin:sign:modify", "SHENYU.BUTTON.PLUGIN.SYNCHRONIZE", null)));
-            String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhZG1pbiIsImlhdCI6MTYxMTc5MjEzOX0.eFORUk5kZawKLTsfRYojy-uaaDySo9kWtcfgxISS_3g";
-            final PermissionMenuVO result = permissionServiceImplUnderTest.getPermissionMenu(token);
-            assertThat(result, is(expectedResult));
+            final PermissionMenuVO result = permissionServiceImplUnderTest.getPermissionMenu(Constants.SYS_DEFAULT_NAMESPACE_ID);
+            assertThat(result.getCurrentAuth(), containsInAnyOrder(expectedResult.getCurrentAuth().toArray()));
+            assertThat(result.getAllAuth(), containsInAnyOrder(expectedResult.getAllAuth().toArray()));
+            assertThat(result.getMenu(), containsInAnyOrder(expectedResult.getMenu().toArray()));
         }
     }
     

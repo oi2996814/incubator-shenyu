@@ -20,9 +20,17 @@ package org.apache.shenyu.sync.data.http;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import okhttp3.Headers;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.shenyu.common.concurrent.ShenyuThreadFactory;
+import org.apache.shenyu.common.config.ShenyuConfig;
 import org.apache.shenyu.common.constant.Constants;
 import org.apache.shenyu.common.dto.ConfigData;
 import org.apache.shenyu.common.enums.ConfigGroupEnum;
@@ -30,22 +38,21 @@ import org.apache.shenyu.common.exception.ShenyuException;
 import org.apache.shenyu.common.utils.GsonUtils;
 import org.apache.shenyu.common.utils.ThreadUtils;
 import org.apache.shenyu.sync.data.api.AuthDataSubscriber;
+import org.apache.shenyu.sync.data.api.DiscoveryUpstreamDataSubscriber;
 import org.apache.shenyu.sync.data.api.MetaDataSubscriber;
 import org.apache.shenyu.sync.data.api.PluginDataSubscriber;
+import org.apache.shenyu.sync.data.api.ProxySelectorDataSubscriber;
 import org.apache.shenyu.sync.data.api.SyncDataService;
 import org.apache.shenyu.sync.data.http.config.HttpConfig;
 import org.apache.shenyu.sync.data.http.refresh.DataRefreshFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
+import org.springframework.util.Assert;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -67,11 +74,6 @@ public class HttpSyncDataService implements SyncDataService {
 
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
 
-    /**
-     * only use for http long polling.
-     */
-    private final RestTemplate restTemplate;
-
     private ExecutorService executor;
 
     private final List<String> serverList;
@@ -80,16 +82,24 @@ public class HttpSyncDataService implements SyncDataService {
 
     private final AccessTokenManager accessTokenManager;
 
+    private final OkHttpClient okHttpClient;
+
+    private final ShenyuConfig shenyuConfig;
+
     public HttpSyncDataService(final HttpConfig httpConfig,
                                final PluginDataSubscriber pluginDataSubscriber,
-                               final RestTemplate restTemplate,
+                               final OkHttpClient okHttpClient,
                                final List<MetaDataSubscriber> metaDataSubscribers,
                                final List<AuthDataSubscriber> authDataSubscribers,
-                               final AccessTokenManager accessTokenManager) {
+                               final List<ProxySelectorDataSubscriber> proxySelectorDataSubscribers,
+                               final List<DiscoveryUpstreamDataSubscriber> discoveryUpstreamDataSubscribers,
+                               final AccessTokenManager accessTokenManager,
+                               final ShenyuConfig shenyuConfig) {
         this.accessTokenManager = accessTokenManager;
-        this.factory = new DataRefreshFactory(pluginDataSubscriber, metaDataSubscribers, authDataSubscribers);
+        this.factory = new DataRefreshFactory(pluginDataSubscriber, metaDataSubscribers, authDataSubscribers, proxySelectorDataSubscribers, discoveryUpstreamDataSubscribers);
         this.serverList = Lists.newArrayList(Splitter.on(",").split(httpConfig.getUrl()));
-        this.restTemplate = restTemplate;
+        this.okHttpClient = okHttpClient;
+        this.shenyuConfig = shenyuConfig;
         this.start();
     }
 
@@ -130,15 +140,24 @@ public class HttpSyncDataService implements SyncDataService {
         for (ConfigGroupEnum groupKey : groups) {
             params.append("groupKeys").append("=").append(groupKey.name()).append("&");
         }
+        params.append("namespaceId").append("=").append(shenyuConfig.getNamespace());
         String url = server + Constants.SHENYU_ADMIN_PATH_CONFIGS_FETCH + "?" + StringUtils.removeEnd(params.toString(), "&");
         LOG.info("request configs: [{}]", url);
         String json;
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set(Constants.X_ACCESS_TOKEN, this.accessTokenManager.getAccessToken());
-            HttpEntity<String> httpEntity = new HttpEntity<>(headers);
-            json = this.restTemplate.exchange(url, HttpMethod.GET, httpEntity, String.class).getBody();
-        } catch (RestClientException e) {
+        Request request = new Request.Builder().url(url)
+                .addHeader(Constants.X_ACCESS_TOKEN, this.accessTokenManager.getAccessToken())
+                .get()
+                .build();
+        try (Response response = okHttpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String message = String.format("fetch config fail from server[%s], http status code[%s]", url, response.code());
+                LOG.warn(message);
+                throw new ShenyuException(message);
+            }
+            ResponseBody responseBody = response.body();
+            Assert.notNull(responseBody, "Resolve response responseBody failed.");
+            json = responseBody.string();
+        } catch (IOException e) {
             String message = String.format("fetch config fail from server[%s], %s", url, e.getMessage());
             LOG.warn(message);
             throw new ShenyuException(message, e);
@@ -150,10 +169,9 @@ public class HttpSyncDataService implements SyncDataService {
             return;
         }
         // not updated. it is likely that the current config server has not been updated yet. wait a moment.
-        LOG.info("The config of the server[{}] has not been updated or is out of date. Wait for 30s to listen for changes again.", server);
-        ThreadUtils.sleep(TimeUnit.SECONDS, 30);
+        LOG.info("The config of the server[{}] has not been updated or is out of date. Wait for listening for changes again.", server);
+        ThreadUtils.sleep(TimeUnit.SECONDS, 5);
     }
-
 
 
     /**
@@ -177,19 +195,37 @@ public class HttpSyncDataService implements SyncDataService {
                 params.put(group.name(), Lists.newArrayList(value));
             }
         }
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-        headers.set(Constants.X_ACCESS_TOKEN, this.accessTokenManager.getAccessToken());
-        HttpEntity<MultiValueMap<String, String>> httpEntity = new HttpEntity<>(params, headers);
+        params.put("namespaceId", Lists.newArrayList(shenyuConfig.getNamespace()));
+        LOG.debug("listener params: [{}]", params);
+        Headers headers = new Headers.Builder()
+                .add(Constants.X_ACCESS_TOKEN, this.accessTokenManager.getAccessToken())
+                .add("Content-Type", "application/x-www-form-urlencoded")
+                .build();
         String listenerUrl = server + Constants.SHENYU_ADMIN_PATH_CONFIGS_LISTENER;
+        String uri = UriComponentsBuilder.fromHttpUrl(listenerUrl).queryParams(params).build(true).toUriString();
+        Request request = new Request.Builder()
+                .url(uri)
+                .headers(headers)
+                .post(RequestBody.create("", null))
+                .build();
 
         JsonArray groupJson;
-        try {
-            String json = this.restTemplate.postForEntity(listenerUrl, httpEntity, String.class).getBody();
+        try (Response response = okHttpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String message = String.format("listener configs fail, server:[%s], http status code[%s]", server, response.code());
+                throw new ShenyuException(message);
+            }
+            ResponseBody responseBody = response.body();
+            Assert.notNull(responseBody, "Resolve response body failed.");
+            String json = responseBody.string();
             LOG.info("listener result: [{}]", json);
             JsonObject responseFromServer = GsonUtils.getGson().fromJson(json, JsonObject.class);
+            JsonElement element = responseFromServer.get("data");
+            if (element.isJsonNull()) {
+                return;
+            }
             groupJson = responseFromServer.getAsJsonArray("data");
-        } catch (RestClientException e) {
+        } catch (IOException e) {
             String message = String.format("listener configs fail, server:[%s], %s", server, e.getMessage());
             throw new ShenyuException(message, e);
         }
@@ -223,7 +259,7 @@ public class HttpSyncDataService implements SyncDataService {
         @Override
         public void run() {
             while (RUNNING.get()) {
-                int retryTimes = 3;
+                int retryTimes = 10;
                 for (int time = 1; time <= retryTimes; time++) {
                     try {
                         //do long polling.

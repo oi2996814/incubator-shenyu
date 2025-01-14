@@ -18,10 +18,12 @@
 package org.apache.shenyu.plugin.base.fallback;
 
 import org.apache.shenyu.common.utils.UriUtils;
+import org.apache.shenyu.plugin.api.utils.SpringBeanUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.reactive.DispatcherHandler;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -32,6 +34,8 @@ import java.util.Objects;
  * Fallback handler.
  */
 public interface FallbackHandler {
+    
+    String PREFIX = "fallback:";
 
     /**
      * do without fallback uri.
@@ -55,22 +59,33 @@ public interface FallbackHandler {
         if (t instanceof HttpStatusCodeException || Objects.isNull(uri)) {
             return withoutFallback(exchange, t);
         }
-
+        if (uri.toString().startsWith(PREFIX)) {
+            String fallbackPath = uri.toString().substring(PREFIX.length());
+            DispatcherHandler dispatcherHandler =
+                    SpringBeanUtils.getInstance().getBean(DispatcherHandler.class);
+            URI previsouUri = exchange.getRequest().getURI();
+            // avoid redirect loop, return error.
+            if (UriUtils.getPathWithParams(previsouUri).equals(fallbackPath)) {
+                return withoutFallback(exchange, t);
+            }
+            URI fallbackUri = UriUtils.createUri(previsouUri.getScheme(), previsouUri.getAuthority(), fallbackPath);
+            ServerHttpRequest request = exchange.getRequest().mutate().uri(fallbackUri).build();
+            ServerWebExchange mutated = exchange.mutate().request(request).build();
+            return dispatcherHandler.handle(mutated);
+        }
         ServerHttpResponse response = exchange.getResponse();
         ServerHttpRequest request = exchange.getRequest();
         // avoid redirect loop, return error.
         boolean isSameUri;
-        if (!Objects.isNull(uri.getScheme())) {
+        if (Objects.nonNull(uri.getScheme())) {
             isSameUri = request.getURI().toString().equals(uri.toString());
         } else {
             String uriStr = UriUtils.repairData(uri.toString());
             isSameUri = uriStr.equals(UriUtils.getPathWithParams(request.getURI()));
         }
-
         if (isSameUri) {
             return withoutFallback(exchange, t);
         }
-
         // redirect to fallback uri.
         response.setStatusCode(HttpStatus.FOUND);
         response.getHeaders().setLocation(uri);

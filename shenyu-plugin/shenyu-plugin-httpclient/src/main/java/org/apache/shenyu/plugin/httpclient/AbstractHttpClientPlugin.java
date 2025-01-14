@@ -21,9 +21,13 @@ import com.google.common.collect.Sets;
 import io.netty.channel.ConnectTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutException;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.shenyu.common.constant.Constants;
+import org.apache.shenyu.common.enums.HeaderUniqueStrategyEnum;
 import org.apache.shenyu.common.enums.RetryEnum;
+import org.apache.shenyu.common.enums.UniqueHeaderEnum;
 import org.apache.shenyu.common.exception.ShenyuException;
+import org.apache.shenyu.common.utils.LogUtils;
 import org.apache.shenyu.loadbalancer.cache.UpstreamCacheManager;
 import org.apache.shenyu.loadbalancer.entity.Upstream;
 import org.apache.shenyu.loadbalancer.factory.LoadBalancerFactory;
@@ -49,6 +53,9 @@ import reactor.util.retry.RetryBackoffSpec;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -56,7 +63,6 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * The type abstract http client plugin.
@@ -78,10 +84,9 @@ public abstract class AbstractHttpClientPlugin<R> implements ShenyuPlugin {
         final Duration duration = Duration.ofMillis(timeout);
         final int retryTimes = (int) Optional.ofNullable(exchange.getAttribute(Constants.HTTP_RETRY)).orElse(0);
         final String retryStrategy = (String) Optional.ofNullable(exchange.getAttribute(Constants.RETRY_STRATEGY)).orElseGet(RetryEnum.CURRENT::getName);
-        LOG.info("The request urlPath is {}, retryTimes is {}, retryStrategy is {}", uri.toASCIIString(), retryTimes, retryStrategy);
-        final HttpHeaders httpHeaders = buildHttpHeaders(exchange);
-        final Mono<R> response = doRequest(exchange, exchange.getRequest().getMethodValue(), uri, httpHeaders, exchange.getRequest().getBody())
-                .timeout(duration, Mono.error(new TimeoutException("Response took longer than timeout: " + duration)))
+        LogUtils.debug(LOG, () -> String.format("The request urlPath is: %s, retryTimes is : %s, retryStrategy is : %s", uri, retryTimes, retryStrategy));
+        final Mono<R> response = doRequest(exchange, exchange.getRequest().getMethod().name(), uri, exchange.getRequest().getBody())
+                .timeout(duration, Mono.error(() -> new TimeoutException("Response took longer than timeout: " + duration)))
                 .doOnError(e -> LOG.error(e.getMessage(), e));
         if (RetryEnum.CURRENT.getName().equals(retryStrategy)) {
             //old version of DividePlugin and SpringCloudPlugin will run on this
@@ -100,7 +105,7 @@ public abstract class AbstractHttpClientPlugin<R> implements ShenyuPlugin {
                     .flatMap((Function<Object, Mono<? extends Void>>) o -> chain.execute(exchange));
         }
         final Set<URI> exclude = Sets.newHashSet(uri);
-        return resend(response, exchange, duration, httpHeaders, exclude, retryTimes)
+        return resend(response, exchange, duration, exclude, retryTimes)
                 .onErrorMap(ShenyuException.class, th -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                         ShenyuResultEnum.CANNOT_FIND_HEALTHY_UPSTREAM_URL_AFTER_FAILOVER.getMsg(), th))
                 .onErrorMap(TimeoutException.class, th -> new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, th.getMessage(), th))
@@ -110,20 +115,18 @@ public abstract class AbstractHttpClientPlugin<R> implements ShenyuPlugin {
     private Mono<R> resend(final Mono<R> clientResponse,
                            final ServerWebExchange exchange,
                            final Duration duration,
-                           final HttpHeaders httpHeaders,
                            final Set<URI> exclude,
                            final int retryTimes) {
         Mono<R> result = clientResponse;
         for (int i = 0; i < retryTimes; i++) {
-            result = resend(result, exchange, duration, httpHeaders, exclude);
+            result = resend(result, exchange, duration, exclude);
         }
         return result;
     }
-
+    
     private Mono<R> resend(final Mono<R> response,
                            final ServerWebExchange exchange,
                            final Duration duration,
-                           final HttpHeaders httpHeaders,
                            final Set<URI> exclude) {
         // does it necessary to add backoff interval time ?
         return response.onErrorResume(th -> {
@@ -154,29 +157,10 @@ public abstract class AbstractHttpClientPlugin<R> implements ShenyuPlugin {
             final URI newUri = RequestUrlUtils.buildRequestUri(exchange, upstream.buildDomain());
             // in order not to affect the next retry call, newUri needs to be excluded
             exclude.add(newUri);
-            return doRequest(exchange, exchange.getRequest().getMethodValue(), newUri, httpHeaders, exchange.getRequest().getBody())
-                    .timeout(duration, Mono.error(new TimeoutException("Response took longer than timeout: " + duration)))
+            return doRequest(exchange, exchange.getRequest().getMethod().name(), newUri, exchange.getRequest().getBody())
+                    .timeout(duration, Mono.error(() -> new TimeoutException("Response took longer than timeout: " + duration)))
                     .doOnError(e -> LOG.error(e.getMessage(), e));
         });
-    }
-
-    /**
-     * Build the http request headers.
-     *
-     * @param exchange the current server exchange
-     * @return HttpHeaders
-     */
-    private HttpHeaders buildHttpHeaders(final ServerWebExchange exchange) {
-        final HttpHeaders headers = new HttpHeaders();
-        headers.addAll(exchange.getRequest().getHeaders());
-        // remove gzip
-        List<String> acceptEncoding = headers.get(HttpHeaders.ACCEPT_ENCODING);
-        if (CollectionUtils.isNotEmpty(acceptEncoding)) {
-            acceptEncoding = Stream.of(String.join(",", acceptEncoding).split(",")).collect(Collectors.toList());
-            acceptEncoding.remove(Constants.HTTP_ACCEPT_ENCODING_GZIP);
-            headers.set(HttpHeaders.ACCEPT_ENCODING, String.join(",", acceptEncoding));
-        }
-        return headers;
     }
 
     /**
@@ -185,11 +169,44 @@ public abstract class AbstractHttpClientPlugin<R> implements ShenyuPlugin {
      * @param exchange    the current server exchange
      * @param httpMethod  http method, eg.POST
      * @param uri         the request uri
-     * @param httpHeaders the request header
      * @param body        the request body
      * @return {@code Mono<Void>} to indicate when request processing is complete
      */
     protected abstract Mono<R> doRequest(ServerWebExchange exchange, String httpMethod,
-                                         URI uri, HttpHeaders httpHeaders, Flux<DataBuffer> body);
+                                         URI uri, Flux<DataBuffer> body);
 
+    protected void duplicateHeaders(final ServerWebExchange exchange, final HttpHeaders headers, final UniqueHeaderEnum uniqueHeaderEnum) {
+        final String duplicateHeader = exchange.getAttribute(uniqueHeaderEnum.getName());
+        if (StringUtils.isEmpty(duplicateHeader)) {
+            return;
+        }
+        List<String> duplicateHeaderList = Arrays.asList(StringUtils.split(duplicateHeader, Constants.SEPARATOR_CHARS));
+        if (CollectionUtils.isEmpty(duplicateHeaderList)) {
+            return;
+        }
+        HeaderUniqueStrategyEnum strategy = exchange.getAttributeOrDefault(uniqueHeaderEnum.getStrategy(), HeaderUniqueStrategyEnum.RETAIN_FIRST);
+        for (String headerKey : duplicateHeaderList) {
+            this.duplicate(headers, headerKey, strategy);
+        }
+    }
+    
+    protected void duplicate(final HttpHeaders headers, final String header, final HeaderUniqueStrategyEnum strategy) {
+        List<String> headerValues = headers.get(header);
+        if (Objects.isNull(headerValues) || headerValues.size() <= 1) {
+            return;
+        }
+        switch (strategy) {
+            case RETAIN_FIRST:
+                headers.set(header, headerValues.get(0));
+                break;
+            case RETAIN_LAST:
+                headers.set(header, headerValues.get(headerValues.size() - 1));
+                break;
+            case RETAIN_UNIQUE:
+                headers.put(header, new ArrayList<>(new LinkedHashSet<>(headerValues)));
+                break;
+            default:
+                throw new IllegalStateException("Unexpected value: " + strategy);
+        }
+    }
 }

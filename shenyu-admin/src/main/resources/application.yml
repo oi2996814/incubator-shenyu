@@ -18,6 +18,8 @@ server:
   address: 0.0.0.0
 
 spring:
+  application:
+    name: shenyu-admin
   profiles:
     active: h2
   thymeleaf:
@@ -29,19 +31,38 @@ spring:
   mvc:
     pathmatch:
       matching-strategy: ant_path_matcher
+  jackson:
+    time-zone: GMT+8 # GMT , Asia/Shanghai
+  messages:
+    basename: message/i18n
+
+
+management:
+  health:
+    mail:
+      enabled: off
+  endpoints:
+    web:
+      exposure:
+        include:
+          - 'health'
+          - 'prometheus'
+    enabled-by-default: true
 
 mybatis:
   config-location: classpath:/mybatis/mybatis-config.xml
   mapper-locations: classpath:/mappers/*.xml
+  type-handlers-package: org.apache.shenyu.admin.mybatis.handler
 
 shenyu:
   register:
-    registerType: http #http #zookeeper #etcd #nacos #consul
-    serverLists: #localhost:2181 #http://localhost:2379 #localhost:8848
+    registerType: http
+    serverLists:
     props:
       sessionTimeout: 5000
       connectionTimeout: 2000
       checked: true
+      zombieCheckThreads: 10
       zombieCheckTimes: 5
       scheduledTime: 10
       nacosNameSpace: ShenyuRegisterCenter
@@ -50,23 +71,36 @@ shenyu:
       enabled: true
       messageMaxSize: 10240
       allowOrigins: ws://localhost:9095;ws://localhost:9195;
-#      zookeeper:
-#        url: localhost:2181
-#        sessionTimeout: 5000
-#        connectionTimeout: 2000
-#      http:
-#        enabled: true
-#      nacos:
-#        url: localhost:8848
-#        namespace: 1c10d748-af86-43b9-8265-75f487d20c6c
-#        username:
-#        password:
-#        acm:
-#          enabled: false
-#          endpoint: acm.aliyun.com
-#          namespace:
-#          accessKey:
-#          secretKey:
+#    apollo:
+#      meta: http://localhost:8080
+#      appId: shenyu
+#      portalUrl: http://localhost:8070
+#      env: dev
+#      clusterName: test
+#      namespace: application
+#      token: 0fff5645fc74ee5e0d63a6389433c8c8afc0beea31eed0279ecc1c8961d12da9
+#    zookeeper:
+#      url: localhost:2181
+#      sessionTimeout: 5000
+#      connectionTimeout: 2000
+#    http:
+#      enabled: true
+#    nacos:
+#      url: localhost:8848
+#      namespace: 1c10d748-af86-43b9-8265-75f487d20c6c
+#      username:
+#      password:
+#      context-path: nacos
+#      acm:
+#        enabled: false
+#        endpoint: acm.aliyun.com
+#        namespace:
+#        accessKey:
+#        secretKey:
+#    polaris:
+#      url: 127.0.0.1:8093
+#      namespace:
+#      fileGroup:
 #    etcd:
 #      url: http://localhost:2379
 #    consul:
@@ -81,6 +115,65 @@ shenyu:
     login-field: cn
   jwt:
     expired-seconds: 86400000
+  cluster:
+    enabled: false
+    type: jdbc
+    connectionTimeout: 15000
+    readTimeout: 15000
+    ignored-list:
+      - /selector/list/**
+      - /appAuth/list/**
+      - /plugin/list/**
+      - /rule/list/**
+    forward-list:
+      - /shenyu-client/**
+      - /configs/**
+      - /selector/batchEnabled
+      - /selector/batch
+      - /selector
+      - /selector/**
+      - /rule/batchEnabled
+      - /rule/batch
+      - /rule
+      - /rule/**
+      - /plugin
+      - /plugin/**
+      - /plugin/createPluginResource/**
+      - /plugin/batch
+      - /plugin/enabled
+      - /plugin/syncPluginAll
+      - /plugin/syncPluginData/**
+      - /proxy-selector/binding
+      - /proxy-selector/**
+      - /proxy-selector/batch
+      - /proxy-selector/addProxySelector
+      - /proxy-selector/fetch/**
+      - /api
+      - /api/**
+      - /api/batch
+      - /appAuth/apply
+      - /appAuth/updateDetail
+      - /appAuth/updateDetailPath
+      - /appAuth/batchDelete
+      - /appAuth/batchEnabled
+      - /appAuth/batchOpened
+      - /appAuth/syncData
+      - /discovery/insertOrUpdate
+      - /discovery/**
+      - /discovery-upstream
+      - /discovery-upstream/batch
+      - /discovery-upstream/**
+      - /meta-data/createOrUpdate
+      - /meta-data/batchDeleted
+      - /meta-data/batchEnabled
+      - /meta-data/syncData
+      - /plugin-handle
+      - /plugin-handle/**
+      - /plugin-handle/batch
+    zookeeper:
+      url: localhost:2181
+      sessionTimeout: 5000
+      connectionTimeout: 2000
   shiro:
     white-list:
       - /
@@ -88,16 +181,18 @@ shenyu:
       - /static/**
       - /index**
       - /platform/login
+      - /platform/secretInfo
       - /websocket
       - /error
       - /actuator/health
+      - /actuator/health/** # /actuator/health/readiness /actuator/health/liveness
+      - /actuator/prometheus
       - /swagger-ui.html
+      - /swagger-ui/**
       - /webjars/**
-      - /swagger-resources/**
-      - /v2/api-docs
+      - /v3/api-docs/**
       - /csrf
-  swagger:
-    enable: true
+      - /alert/report
   dashboard:
     core:
       onlySuperAdminPermission:
@@ -113,6 +208,34 @@ shenyu:
         - system:resource:editMenu
         - system:resource:deleteButton
         - system:resource:deleteMenu
+  k8s:
+    scale:
+      enabled: false
+      monitor-interval: 10000
+      pool-size: 6
+    prometheus:
+      url: http://localhost:9090
+      queries:
+        cpu_usage: "sum(rate(container_cpu_usage_seconds_total{namespace='%s', pod=~'%s.*'}[5m]))"
+        memory_usage: "sum(container_memory_usage_bytes{namespace='%s', pod=~'%s.*'})"
+        request_count: "sum(rate(http_requests_total{namespace='%s', pod=~'%s.*'}[1m]))"
+    deployment:
+      name: "shenyu-bootstrap"
+      namespace: "shenyu"
+      apiServer: "https://127.0.0.1:6443"
+      token: "token"
+      caCertPath: "/etc/kubernetes/pki/ca.crt"
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    tags-sorter: alpha
+  packages-to-scan: org.apache.shenyu.admin.controller
+  paths-to-match: /**
+
+logging:
   level:
     root: info
     org.springframework.boot: info
@@ -120,3 +243,4 @@ shenyu:
     org.apache.shenyu.bonuspoint: info
     org.apache.shenyu.lottery: info
     org.apache.shenyu: info
+#    org.apache.shenyu.admin.utils.HttpUtils: debug

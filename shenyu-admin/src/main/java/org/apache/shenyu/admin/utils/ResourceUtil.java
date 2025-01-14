@@ -27,6 +27,7 @@ import org.apache.shenyu.common.constant.AdminConstants;
 import org.apache.shenyu.common.enums.AdminPluginOperateEnum;
 import org.apache.shenyu.common.enums.AdminResourceEnum;
 import org.apache.shenyu.common.enums.ConfigGroupEnum;
+import org.apache.shenyu.common.utils.ListUtil;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -39,6 +40,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static java.util.Comparator.comparing;
+import static java.util.Comparator.naturalOrder;
+import static java.util.Comparator.nullsLast;
 
 /**
  * ResourceUtil.
@@ -170,12 +175,9 @@ public final class ResourceUtil {
                     PermissionMenuVO.MenuInfo menuInfo = menuInfoMap.get(parent);
                     if (CollectionUtils.isNotEmpty(children)) {
                         List<PermissionMenuVO.MenuInfo> targetList = Objects.isNull(menuInfo) ? retList : menuInfo.getChildren();
-                        children.forEach(child -> {
-                            PermissionMenuVO.MenuInfo data = menuInfoMap.get(child);
-                            if (Objects.nonNull(data)) {
-                                targetList.add(data);
-                            }
-                        });
+                        children.stream().map(menuInfoMap::get).filter(Objects::nonNull)
+                                .sorted(comparing(PermissionMenuVO.MenuInfo::getSort, nullsLast(naturalOrder())))
+                                .forEach(targetList::add);
                     }
                 });
         

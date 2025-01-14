@@ -14,18 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM openjdk:8-jre-alpine
+FROM centos:7 AS prepare
 
 ARG APP_NAME
 
 ENV LOCAL_PATH /opt/shenyu-bootstrap
-ENV BOOT_JVM ""
-
-RUN apk --no-cache add procps
 
 ADD target/${APP_NAME}.tar.gz /opt
 RUN mv /opt/${APP_NAME} ${LOCAL_PATH}
 
+# FROM amazoncorretto:17.0.11-alpine3.19
+FROM eclipse-temurin:17-centos7
+
+# RUN apk --no-cache add wget curl
+
+ENV LOCAL_PATH /opt/shenyu-bootstrap
+ENV BOOT_JVM ""
+
+COPY --from=prepare ${LOCAL_PATH} ${LOCAL_PATH}
 COPY docker/logback.xml ${LOCAL_PATH}/conf/logback.xml
 COPY docker/entrypoint.sh ${LOCAL_PATH}/entrypoint.sh
 RUN chmod +x ${LOCAL_PATH}/entrypoint.sh

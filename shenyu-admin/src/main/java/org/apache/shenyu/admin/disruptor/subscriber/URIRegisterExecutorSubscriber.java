@@ -22,13 +22,16 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.shenyu.admin.service.register.ShenyuClientRegisterService;
 import org.apache.shenyu.register.common.dto.URIRegisterDTO;
+import org.apache.shenyu.register.common.enums.EventType;
 import org.apache.shenyu.register.common.subsriber.ExecutorTypeSubscriber;
 import org.apache.shenyu.register.common.type.DataType;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -67,7 +70,40 @@ public class URIRegisterExecutorSubscriber implements ExecutorTypeSubscriber<URI
                     .ifPresent(service -> {
                         final List<URIRegisterDTO> list = entry.getValue();
                         Map<String, List<URIRegisterDTO>> listMap = buildData(list);
-                        listMap.forEach(service::registerURI);
+                        listMap.forEach((selectorName, uriList) -> {
+                            final List<URIRegisterDTO> register = new LinkedList<>();
+                            final List<URIRegisterDTO> heartbeat = new LinkedList<>();
+                            final List<URIRegisterDTO> offline = new LinkedList<>();
+                            for (URIRegisterDTO d : uriList) {
+                                final EventType eventType = d.getEventType();
+                                if (Objects.isNull(eventType) || EventType.REGISTER.equals(eventType)) {
+                                    // eventType is null, should be old versions
+                                    register.add(d);
+                                } else if (EventType.OFFLINE.equals(eventType)) {
+                                    offline.add(d);
+                                } else if (EventType.HEARTBEAT.equals(eventType)) {
+                                    heartbeat.add(d);
+                                }
+                            }
+                            if (CollectionUtils.isNotEmpty(register)) {
+                                register.stream().map(URIRegisterDTO::getNamespaceId)
+                                        .filter(StringUtils::isNotBlank)
+                                        .findFirst()
+                                        .ifPresent(namespaceId -> service.registerURI(selectorName, register, namespaceId));
+                            }
+                            if (CollectionUtils.isNotEmpty(heartbeat)) {
+                                heartbeat.stream().map(URIRegisterDTO::getNamespaceId)
+                                        .filter(StringUtils::isNotBlank)
+                                        .findFirst()
+                                        .ifPresent(namespaceId -> service.heartbeat(selectorName, register, namespaceId));
+                            }
+                            if (CollectionUtils.isNotEmpty(offline)) {
+                                offline.stream().map(URIRegisterDTO::getNamespaceId)
+                                        .filter(StringUtils::isNotBlank)
+                                        .findFirst()
+                                        .ifPresent(namespaceId -> service.offline(selectorName, offline, namespaceId));
+                            }
+                        });
                     });
         }
     }

@@ -29,15 +29,16 @@ import org.apache.shenyu.client.tars.common.dto.TarsRpcExt;
 import org.apache.shenyu.common.enums.ApiHttpMethodEnum;
 import org.apache.shenyu.common.enums.RpcTypeEnum;
 import org.apache.shenyu.common.utils.GsonUtils;
-import org.apache.shenyu.common.utils.IpUtils;
 import org.apache.shenyu.register.client.api.ShenyuClientRegisterRepository;
-import org.apache.shenyu.register.common.config.PropertiesConfig;
+import org.apache.shenyu.register.common.config.ShenyuClientConfig;
 import org.apache.shenyu.register.common.dto.MetaDataRegisterDTO;
 import org.apache.shenyu.register.common.dto.URIRegisterDTO;
+import org.apache.shenyu.register.common.enums.EventType;
 import org.javatuples.Sextet;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.context.ApplicationContext;
-import org.springframework.core.LocalVariableTableParameterNameDiscoverer;
+
+import org.springframework.core.StandardReflectionParameterNameDiscoverer;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
@@ -58,7 +59,7 @@ import java.util.stream.Collectors;
  */
 public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventListener<Object, ShenyuTarsClient> {
 
-    private final LocalVariableTableParameterNameDiscoverer localVariableTableParameterNameDiscoverer = new LocalVariableTableParameterNameDiscoverer();
+    private final StandardReflectionParameterNameDiscoverer localVariableTableParameterNameDiscoverer = new StandardReflectionParameterNameDiscoverer();
 
     private final ShenyuClientRegisterEventPublisher publisher = ShenyuClientRegisterEventPublisher.getInstance();
 
@@ -66,9 +67,9 @@ public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventL
 
     private final String ipAndPort;
 
-    public TarsServiceBeanEventListener(final PropertiesConfig clientConfig, final ShenyuClientRegisterRepository shenyuClientRegisterRepository) {
+    public TarsServiceBeanEventListener(final ShenyuClientConfig clientConfig, final ShenyuClientRegisterRepository shenyuClientRegisterRepository) {
         super(clientConfig, shenyuClientRegisterRepository);
-        Properties props = clientConfig.getProps();
+        Properties props = clientConfig.getClient().get(getClientName()).getProps();
         String contextPath = props.getProperty(ShenyuClientConstants.CONTEXT_PATH);
         String port = props.getProperty(ShenyuClientConstants.PORT);
         if (StringUtils.isAnyBlank(contextPath, this.getHost(), port)) {
@@ -80,7 +81,7 @@ public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventL
     }
 
     @Override
-    protected Sextet<String[], String, String, ApiHttpMethodEnum[], RpcTypeEnum, String> buildApiDocSextet(final Method method, final Annotation annotation) {
+    protected Sextet<String[], String, String, ApiHttpMethodEnum[], RpcTypeEnum, String> buildApiDocSextet(final Method method, final Annotation annotation, final Map<String, Object> beans) {
         ShenyuTarsClient shenyuTarsClient = AnnotatedElementUtils.findMergedAnnotation(method, ShenyuTarsClient.class);
         if (Objects.isNull(shenyuTarsClient)) {
             return null;
@@ -100,16 +101,24 @@ public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventL
 
     @Override
     protected URIRegisterDTO buildURIRegisterDTO(final ApplicationContext context,
-                                                 final Map<String, Object> beans) {
+                                                 final Map<String, Object> beans,
+                                                 final String namespaceId) {
         return URIRegisterDTO.builder()
                 .contextPath(this.contextPath)
                 .appName(this.ipAndPort)
                 .rpcType(RpcTypeEnum.TARS.getName())
+                .eventType(EventType.REGISTER)
                 .host(this.getHost())
                 .port(Integer.parseInt(this.getPort()))
+                .namespaceId(namespaceId)
                 .build();
     }
-
+    
+    @Override
+    protected String getClientName() {
+        return RpcTypeEnum.TARS.getName();
+    }
+    
     @Override
     protected String buildApiSuperPath(final Class<?> clazz, @Nullable final ShenyuTarsClient shenyuTarsClient) {
         if (Objects.nonNull(shenyuTarsClient) && !StringUtils.isBlank(shenyuTarsClient.path())) {
@@ -131,18 +140,23 @@ public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventL
         }
         final ShenyuTarsClient beanTarsClient = AnnotatedElementUtils.findMergedAnnotation(clazz, ShenyuTarsClient.class);
         final String superPath = buildApiSuperPath(clazz, beanTarsClient);
+        List<String> namespaceIds = super.getNamespace();
         if (superPath.contains("*") && Objects.nonNull(beanTarsClient)) {
             Method[] declaredMethods = ReflectionUtils.getDeclaredMethods(clazz);
-            for (Method declaredMethod : declaredMethods) {
-                publisher.publishEvent(buildMetaDataDTO(bean, beanTarsClient, buildApiPath(declaredMethod, superPath, beanTarsClient), clazz, declaredMethod));
+            for (String namespaceId : namespaceIds) {
+                for (Method declaredMethod : declaredMethods) {
+                    publisher.publishEvent(buildMetaDataDTO(bean, beanTarsClient, buildApiPath(declaredMethod, superPath, beanTarsClient), clazz, declaredMethod, namespaceId));
+                }
             }
             return;
         }
         Method[] methods = ReflectionUtils.getUniqueDeclaredMethods(clazz);
-        for (Method method : methods) {
-            ShenyuTarsClient shenyuTarsClient = AnnotatedElementUtils.findMergedAnnotation(method, ShenyuTarsClient.class);
-            if (Objects.nonNull(shenyuTarsClient)) {
-                publisher.publishEvent(buildMetaDataDTO(bean, shenyuTarsClient, buildApiPath(method, superPath, shenyuTarsClient), clazz, method));
+        for (String namespaceId : namespaceIds) {
+            for (Method method : methods) {
+                ShenyuTarsClient shenyuTarsClient = AnnotatedElementUtils.findMergedAnnotation(method, ShenyuTarsClient.class);
+                if (Objects.nonNull(shenyuTarsClient)) {
+                    publisher.publishEvent(buildMetaDataDTO(bean, shenyuTarsClient, buildApiPath(method, superPath, shenyuTarsClient), clazz, method, namespaceId));
+                }
             }
         }
     }
@@ -151,11 +165,10 @@ public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventL
     public MetaDataRegisterDTO buildMetaDataDTO(final Object bean,
                                                 @NonNull final ShenyuTarsClient shenyuTarsClient,
                                                 final String path, final Class<?> clazz,
-                                                final Method method) {
+                                                final Method method, final String namespaceId) {
         String serviceName = clazz.getAnnotation(ShenyuTarsService.class).serviceName();
         String ipAndPort = this.ipAndPort;
         String desc = shenyuTarsClient.desc();
-        String host = IpUtils.isCompleteHost(this.getHost()) ? this.getHost() : IpUtils.getHost(this.getHost());
         String configRuleName = shenyuTarsClient.ruleName();
         String ruleName = ("".equals(configRuleName)) ? path : configRuleName;
         String methodName = method.getName();
@@ -168,7 +181,7 @@ public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventL
             .methodName(methodName)
             .contextPath(this.contextPath)
             .path(path)
-            .host(host)
+            .host(super.getHost())
             .port(Integer.parseInt(this.getPort()))
             .ruleName(ruleName)
             .pathDesc(desc)
@@ -176,6 +189,7 @@ public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventL
             .rpcType(RpcTypeEnum.TARS.getName())
             .rpcExt(buildRpcExtJson(method))
             .enabled(shenyuTarsClient.enabled())
+            .namespaceId(namespaceId)
             .build();
     }
 
@@ -189,7 +203,7 @@ public class TarsServiceBeanEventListener extends AbstractContextRefreshedEventL
     private TarsRpcExt.RpcExt buildRpcExt(final Method method) {
         String[] paramNames = localVariableTableParameterNameDiscoverer.getParameterNames(method);
         List<Pair<String, String>> params = new ArrayList<>();
-        if (paramNames != null && paramNames.length > 0) {
+        if (Objects.nonNull(paramNames) && paramNames.length > 0) {
             Class<?>[] paramTypes = method.getParameterTypes();
             for (int i = 0; i < paramNames.length; i++) {
                 params.add(Pair.of(paramTypes[i].getName(), paramNames[i]));

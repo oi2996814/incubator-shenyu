@@ -17,11 +17,17 @@
 
 package org.apache.shenyu.admin.config;
 
+import com.github.pagehelper.dialect.helper.MySqlDialect;
+import com.github.pagehelper.page.PageAutoDialect;
+import org.apache.shenyu.admin.mybatis.og.interceptor.OpenGaussSQLPrepareInterceptor;
+import org.apache.shenyu.admin.mybatis.og.interceptor.OpenGaussSQLQueryInterceptor;
+import org.apache.shenyu.admin.mybatis.og.interceptor.OpenGaussSqlUpdateInterceptor;
 import org.apache.shenyu.admin.mybatis.oracle.OracleSQLPrepareInterceptor;
 import org.apache.shenyu.admin.mybatis.oracle.OracleSQLUpdateInterceptor;
 import org.apache.shenyu.admin.mybatis.pg.interceptor.PostgreSQLPrepareInterceptor;
 import org.apache.shenyu.admin.mybatis.pg.interceptor.PostgreSQLQueryInterceptor;
 import org.apache.shenyu.admin.mybatis.pg.interceptor.PostgreSqlUpdateInterceptor;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -102,6 +108,57 @@ public class MapperConfig {
         @ConditionalOnMissingBean(OracleSQLUpdateInterceptor.class)
         public OracleSQLUpdateInterceptor oracleSqlUpdateInterceptor() {
             return new OracleSQLUpdateInterceptor();
+        }
+    }
+
+    @Configuration
+    @ConditionalOnProperty(name = "shenyu.database.dialect", havingValue = "opengauss")
+    static class OpenGaussSQLConfig {
+
+        /**
+         * Add the plugin to the MyBatis plugin interceptor chain.
+         *
+         * @return {@linkplain OpenGaussSQLQueryInterceptor}
+         */
+        @Bean
+        @ConditionalOnMissingBean(OpenGaussSQLQueryInterceptor.class)
+        public OpenGaussSQLQueryInterceptor openGaussSqlQueryInterceptor() {
+            return new OpenGaussSQLQueryInterceptor();
+        }
+
+        /**
+         * Add the plugin to the MyBatis plugin interceptor chain.
+         *
+         * @return {@linkplain OpenGaussSQLPrepareInterceptor}
+         */
+        @Bean
+        @ConditionalOnMissingBean(OpenGaussSQLPrepareInterceptor.class)
+        public OpenGaussSQLPrepareInterceptor openGaussSqlPrepareInterceptor() {
+            return new OpenGaussSQLPrepareInterceptor();
+        }
+
+        /**
+         * Add the plugin to the MyBatis plugin interceptor chain.
+         *
+         * @return {@linkplain OpenGaussSqlUpdateInterceptor}
+         */
+        @Bean
+        @ConditionalOnMissingBean(OpenGaussSqlUpdateInterceptor.class)
+        public OpenGaussSqlUpdateInterceptor openGaussSqlUpdateInterceptor() {
+            return new OpenGaussSqlUpdateInterceptor();
+        }
+    }
+
+    @Configuration
+    @ConditionalOnProperty(name = "shenyu.database.dialect", havingValue = "oceanbase")
+    static class OceanBaseSQLConfig implements InitializingBean {
+
+        /**
+         * Register auto dialect alias.
+         */
+        @Override
+        public void afterPropertiesSet() {
+            PageAutoDialect.registerDialectAlias("oceanbase", MySqlDialect.class);
         }
     }
 }

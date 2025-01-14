@@ -17,36 +17,36 @@
 
 package org.apache.shenyu.admin.controller;
 
+import jakarta.annotation.Resource;
+
+import org.apache.shenyu.admin.model.vo.NamespaceVO;
+import org.apache.shenyu.admin.register.ShenyuClientServerRegisterPublisher;
+import org.apache.shenyu.admin.service.NamespaceService;
 import org.apache.shenyu.admin.utils.ShenyuResultMessage;
-import org.apache.shenyu.register.common.config.ShenyuRegisterCenterConfig;
+import org.apache.shenyu.register.common.dto.ApiDocRegisterDTO;
+import org.apache.shenyu.register.common.dto.DiscoveryConfigRegisterDTO;
 import org.apache.shenyu.register.common.dto.MetaDataRegisterDTO;
 import org.apache.shenyu.register.common.dto.URIRegisterDTO;
-import org.apache.shenyu.register.client.server.api.ShenyuClientServerRegisterPublisher;
-import org.apache.shenyu.register.client.server.api.ShenyuClientServerRegisterRepository;
-import org.apache.shenyu.spi.Join;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Objects;
 
 /**
  * The type shenyu client controller.
  */
+@RestController
 @RequestMapping("/shenyu-client")
-@Join
-public class ShenyuClientHttpRegistryController implements ShenyuClientServerRegisterRepository {
+public class ShenyuClientHttpRegistryController {
 
+    @Resource
     private ShenyuClientServerRegisterPublisher publisher;
 
-    @Override
-    public void init(final ShenyuClientServerRegisterPublisher publisher, final ShenyuRegisterCenterConfig config) {
-        this.publisher = publisher;
-    }
-
-    @Override
-    public void close() {
-        publisher.close();
-    }
+    @Resource
+    private NamespaceService namespaceService;
 
     /**
      * Register metadata string.
@@ -57,11 +57,11 @@ public class ShenyuClientHttpRegistryController implements ShenyuClientServerReg
     @PostMapping("/register-metadata")
     @ResponseBody
     public String registerMetadata(@RequestBody final MetaDataRegisterDTO metaDataRegisterDTO) {
+        checkClientNamespaceExist(metaDataRegisterDTO.getNamespaceId());
         publisher.publish(metaDataRegisterDTO);
         return ShenyuResultMessage.SUCCESS;
     }
-    
-    
+
     /**
      * Register uri string.
      *
@@ -71,8 +71,56 @@ public class ShenyuClientHttpRegistryController implements ShenyuClientServerReg
     @PostMapping("/register-uri")
     @ResponseBody
     public String registerURI(@RequestBody final URIRegisterDTO uriRegisterDTO) {
+        checkClientNamespaceExist(uriRegisterDTO.getNamespaceId());
         publisher.publish(uriRegisterDTO);
         return ShenyuResultMessage.SUCCESS;
     }
-    
+
+    /**
+     * registerApiDoc.
+     *
+     * @param apiDocRegisterDTO apiDocRegisterDTO
+     * @return String
+     */
+    @PostMapping("/register-apiDoc")
+    @ResponseBody
+    public String registerApiDoc(@RequestBody final ApiDocRegisterDTO apiDocRegisterDTO) {
+        publisher.publish(apiDocRegisterDTO);
+        return ShenyuResultMessage.SUCCESS;
+    }
+
+    /**
+     * registerDiscoveryConfig.
+     *
+     * @param discoveryConfigRegisterDTO discoveryConfigRegisterDTO
+     * @return String
+     */
+    @PostMapping("/register-discoveryConfig")
+    @ResponseBody
+    public String registerDiscoveryConfig(@RequestBody final DiscoveryConfigRegisterDTO discoveryConfigRegisterDTO) {
+        checkClientNamespaceExist(discoveryConfigRegisterDTO.getNamespaceId());
+        publisher.publish(discoveryConfigRegisterDTO);
+        return ShenyuResultMessage.SUCCESS;
+    }
+
+    /**
+     * Offline result string.
+     *
+     * @param offlineDTO the offline dto
+     * @return the string
+     */
+    @PostMapping("/offline")
+    @ResponseBody
+    public String offline(@RequestBody final URIRegisterDTO offlineDTO) {
+        checkClientNamespaceExist(offlineDTO.getNamespaceId());
+        publisher.publish(offlineDTO);
+        return ShenyuResultMessage.SUCCESS;
+    }
+
+    public void checkClientNamespaceExist(final String namespaceId) {
+        NamespaceVO namespaceVO = namespaceService.findByNamespaceId(namespaceId);
+        if (Objects.isNull(namespaceVO)) {
+            throw new IllegalArgumentException("namespaceId is not exist");
+        }
+    }
 }

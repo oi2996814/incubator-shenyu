@@ -33,7 +33,7 @@ import org.apache.shenyu.register.common.dto.URIRegisterDTO;
 import org.apache.shenyu.register.common.enums.EventType;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -65,7 +65,7 @@ public class ShenyuClientRegisterSpringCloudServiceImpl extends AbstractContextP
     @Override
     protected void registerMetadata(final MetaDataRegisterDTO metaDataDTO) {
         MetaDataService metaDataService = getMetaDataService();
-        MetaDataDO metaDataDO = metaDataService.findByPath(metaDataDTO.getPath());
+        MetaDataDO metaDataDO = metaDataService.findByPathAndNamespaceId(metaDataDTO.getPath(), metaDataDTO.getNamespaceId());
         metaDataService.saveOrUpdateMetaData(metaDataDO, metaDataDTO);
     }
 
@@ -98,26 +98,13 @@ public class ShenyuClientRegisterSpringCloudServiceImpl extends AbstractContextP
         if (doSubmit(selectorDO.getId(), canAddList)) {
             return null;
         }
-
-        List<DivideUpstream> handleList;
-        if (CollectionUtils.isEmpty(existList)) {
-            handleList = addList;
-        } else {
-            List<DivideUpstream> aliveList;
-            if (isEventDeleted) {
-                aliveList = existList.stream().filter(e -> e.isStatus() && !e.equals(addList.get(0))).collect(Collectors.toList());
-            } else {
-                aliveList = addList;
-            }
-            handleList = springCloudSelectorHandleConverter.updateStatusAndFilter(existList, aliveList);
-        }
-        springCloudSelectorHandle.setDivideUpstreams(handleList);
+        springCloudSelectorHandle.setDivideUpstreams(CollectionUtils.isEmpty(existList) ? canAddList : existList);
         return GsonUtils.getInstance().toJson(springCloudSelectorHandle);
     }
 
     private List<DivideUpstream> buildDivideUpstreamList(final List<URIRegisterDTO> uriList) {
         return uriList.stream()
-                .map(dto -> CommonUpstreamUtils.buildDefaultDivideUpstream(dto.getHost(), dto.getPort()))
+                .map(dto -> CommonUpstreamUtils.buildDefaultDivideUpstream(dto.getHost(), dto.getPort(), dto.getNamespaceId()))
                 .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
     }
 

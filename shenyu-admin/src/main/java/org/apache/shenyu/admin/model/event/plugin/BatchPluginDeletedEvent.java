@@ -21,7 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.shenyu.admin.model.entity.BaseDO;
 import org.apache.shenyu.admin.model.entity.PluginDO;
 import org.apache.shenyu.admin.model.enums.EventTypeEnum;
-import org.apache.shenyu.admin.utils.ListUtil;
+import org.apache.shenyu.common.utils.ListUtil;
 
 import java.util.Collection;
 import java.util.List;
@@ -31,13 +31,13 @@ import java.util.stream.Collectors;
  * BatchPluginDeletedEvent.
  */
 public class BatchPluginDeletedEvent extends BatchPluginChangedEvent {
-    
+
     private final List<String> deletedPluginIds;
-    
+
     /**
      * Create a new {@code PluginChangedEvent}.operator is unknown.
      *
-     * @param source   Current plugin state
+     * @param source Current plugin state
      * @param operator operator
      */
     public BatchPluginDeletedEvent(final Collection<PluginDO> source, final String operator) {
@@ -74,4 +74,5 @@ public class BatchPluginDeletedEvent extends BatchPluginChangedEvent {
     public List<String> getDeletedPluginIds() {
         return deletedPluginIds;
     }
+
 }

@@ -17,22 +17,21 @@
 
 package org.apache.shenyu.admin.controller;
 
+import org.apache.shenyu.admin.aspect.annotation.RestApi;
 import org.apache.shenyu.admin.model.dto.ProxyGatewayDTO;
 import org.apache.shenyu.admin.service.SandboxService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
+import java.io.IOException;
 
 /**
  * Sandbox environment.
  */
-@RestController
-@RequestMapping("/sandbox")
+@RestApi("/sandbox")
 public class SandboxController {
 
     private final SandboxService sandboxService;
@@ -47,12 +46,12 @@ public class SandboxController {
      * @param proxyGatewayDTO proxyGatewayDTO
      * @param request         request
      * @param response        response
+     * @throws IOException throw io exception
      */
     @PostMapping(path = "/proxyGateway")
     public void proxyGateway(@RequestBody @Valid final ProxyGatewayDTO proxyGatewayDTO,
                             final HttpServletRequest request,
-                            final HttpServletResponse response) {
-
+                            final HttpServletResponse response) throws IOException {
         sandboxService.requestProxyGateway(proxyGatewayDTO, request, response);
     }
 }

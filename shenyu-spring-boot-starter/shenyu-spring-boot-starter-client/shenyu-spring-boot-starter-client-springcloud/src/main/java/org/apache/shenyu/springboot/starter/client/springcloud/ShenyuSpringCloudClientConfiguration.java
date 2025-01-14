@@ -17,13 +17,14 @@
 
 package org.apache.shenyu.springboot.starter.client.springcloud;
 
+import org.apache.shenyu.client.auto.config.ClientRegisterConfiguration;
 import org.apache.shenyu.client.springcloud.init.SpringCloudClientEventListener;
-import org.apache.shenyu.common.enums.RpcTypeEnum;
 import org.apache.shenyu.common.utils.VersionUtils;
 import org.apache.shenyu.register.client.api.ShenyuClientRegisterRepository;
 import org.apache.shenyu.register.common.config.ShenyuClientConfig;
 import org.apache.shenyu.springboot.starter.client.common.config.ShenyuClientCommonBeanConfiguration;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -50,9 +51,10 @@ public class ShenyuSpringCloudClientConfiguration {
      * @return the spring cloud client bean post processor
      */
     @Bean
+    @ConditionalOnMissingBean(ClientRegisterConfiguration.class)
     public SpringCloudClientEventListener springCloudClientEventListener(final ShenyuClientConfig clientConfig,
                                                                         final ShenyuClientRegisterRepository shenyuClientRegisterRepository,
                                                                         final Environment env) {
-        return new SpringCloudClientEventListener(clientConfig.getClient().get(RpcTypeEnum.SPRING_CLOUD.getName()), shenyuClientRegisterRepository, env);
+        return new SpringCloudClientEventListener(clientConfig, shenyuClientRegisterRepository, env);
     }
 }

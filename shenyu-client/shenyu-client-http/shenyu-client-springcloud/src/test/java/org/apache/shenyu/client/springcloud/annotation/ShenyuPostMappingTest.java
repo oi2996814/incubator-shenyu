@@ -59,8 +59,8 @@ public class ShenyuPostMappingTest {
             assertEquals(requestMapping.path()[0], "/save");
             ShenyuSpringCloudClient shenyuSpringCloudClient = AnnotatedElementUtils.findMergedAnnotation(method, ShenyuSpringCloudClient.class);
             assertNotNull(shenyuSpringCloudClient);
-            assertEquals(shenyuSpringCloudClient.value(), "/save");
-            assertEquals(shenyuSpringCloudClient.path(), "/save");
+            assertEquals(shenyuSpringCloudClient.value()[0], "/save");
+            assertEquals(shenyuSpringCloudClient.path()[0], "/save");
             assertEquals(shenyuSpringCloudClient.ruleName(), "divide");
             assertFalse(shenyuSpringCloudClient.enabled());
             assertEquals(shenyuSpringCloudClient.desc(), "it`s test.");
@@ -71,7 +71,7 @@ public class ShenyuPostMappingTest {
 
         @ShenyuPostMapping(value = "/save", ruleName = "divide", enabled = false, desc = "it`s test.")
         public String save(@RequestBody final String body) {
-            return "" + body;
+            return body;
         }
     }
 }

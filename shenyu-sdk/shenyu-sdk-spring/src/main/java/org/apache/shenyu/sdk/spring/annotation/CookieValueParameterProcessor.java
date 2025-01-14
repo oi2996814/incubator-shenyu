@@ -17,6 +17,9 @@
 
 package org.apache.shenyu.sdk.spring.annotation;
 
+import com.google.common.collect.Lists;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.shenyu.sdk.core.ShenyuRequest;
 import org.apache.shenyu.sdk.core.common.RequestTemplate;
 import org.apache.shenyu.sdk.spring.factory.AnnotatedParameterProcessor;
@@ -24,11 +27,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.CookieValue;
 
 import java.lang.annotation.Annotation;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 
-import static com.google.common.base.Strings.emptyToNull;
 import static org.apache.shenyu.sdk.core.util.Util.checkState;
 
 
@@ -49,12 +50,17 @@ public class CookieValueParameterProcessor implements AnnotatedParameterProcesso
         RequestTemplate requestTemplate = shenyuRequest.getRequestTemplate();
         CookieValue cookie = ANNOTATION.cast(annotation);
         String name = cookie.value().trim();
-        checkState(emptyToNull(name) != null, "Cookie.name() was empty on parameter %s", requestTemplate.getMethod());
-        Collection<String> cookieExpression = requestTemplate.getHeaders().getOrDefault(HttpHeaders.COOKIE, new ArrayList<>());
+        checkState(StringUtils.isNotBlank(name), "Cookie.name() was empty on parameter %s", requestTemplate.getMethod());
+        Collection<String> cookieExpression = requestTemplate.getHeaders().getOrDefault(HttpHeaders.COOKIE, Lists.newArrayList());
         cookieExpression.add(String.format("%s=%s", name, arg));
         Map<String, Collection<String>> headers = shenyuRequest.getHeaders();
-        headers.remove(HttpHeaders.COOKIE);
-        headers.put(HttpHeaders.COOKIE, cookieExpression);
+        headers.compute(HttpHeaders.COOKIE, (key, old) -> {
+            if (CollectionUtils.isEmpty(old)) {
+                return cookieExpression;
+            }
+            CollectionUtils.addAll(old, cookieExpression);
+            return old;
+        });
         shenyuRequest.setHeaders(headers);
         return true;
     }

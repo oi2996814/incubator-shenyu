@@ -53,6 +53,22 @@ public interface ShenyuClientRegisterRepository {
     }
 
     /**
+     * Node active offline when shutdown.
+     *
+     * @param offlineDTO the offline dto
+     */
+    default void offline(URIRegisterDTO offlineDTO) {
+    }
+
+    /**
+     * Send heartbeat.
+     *
+     * @param heartbeatDTO the heartbeat dto
+     */
+    default void sendHeartbeat(URIRegisterDTO heartbeatDTO) {
+    }
+
+    /**
      * persistApiDoc.
      * @param apiDocRegisterDTO apiDocRegisterDTO
      */
@@ -60,8 +76,10 @@ public interface ShenyuClientRegisterRepository {
     }
     
     /**
-     * Close.
+     * closeRepository.
+     * If the close method is used, Spring will call it by default when the bean is destroyed,
+     * So its method name is closeRepository to avoid being called by default when the bean is destroyed.
      */
-    default void close() {
+    default void closeRepository() {
     }
 }

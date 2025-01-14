@@ -34,7 +34,7 @@ import java.util.Set;
  */
 @Mapper
 public interface SelectorMapper extends ExistProvider {
-    
+
     /**
      * selector existed.
      *
@@ -43,7 +43,7 @@ public interface SelectorMapper extends ExistProvider {
      */
     @Override
     Boolean existed(@Param("id") Serializable id);
-    
+
     /**
      * select selector by id.
      *
@@ -51,7 +51,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return {@linkplain SelectorDO}
      */
     SelectorDO selectById(String id);
-    
+
     /**
      * Select selector by a list of ids.
      *
@@ -59,7 +59,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return a list of {@linkplain SelectorDO}
      */
     List<SelectorDO> selectByIdSet(@Param("idSet") Set<String> idSet);
-    
+
     /**
      * select selector by query.
      *
@@ -67,40 +67,54 @@ public interface SelectorMapper extends ExistProvider {
      * @return {@linkplain List}
      */
     List<SelectorDO> selectByQuery(SelectorQuery selectorQuery);
-    
+
     /**
-     * Find by plugin id list.
+     * Find list by plugin id and namespaceId.
      *
-     * @param pluginId the plugin id
+     * @param pluginId    the plugin id
+     * @param namespaceId namespaceId.
      * @return the list
      */
-    List<SelectorDO> findByPluginId(String pluginId);
-    
+    List<SelectorDO> findByPluginIdAndNamespaceId(String pluginId, String namespaceId);
+
     /**
-     * Find by plugin id list.
+     * Find list by plugin id and namespaceId.
      *
-     * @param pluginIds the plugin ids
+     * @param pluginIds   the plugin ids
+     * @param namespaceId namespaceId.
      * @return the list
      */
-    List<SelectorDO> findByPluginIds(List<String> pluginIds);
-    
+    List<SelectorDO> findByPluginIdsAndNamespaceId(@Param("list") List<String> pluginIds, String namespaceId);
+
     /**
-     * select select by name.
+     * Find list by plugin id.
      *
-     * @param name the name
-     * @return selector do
+     * @param pluginIds   the plugin ids
+     * @return the list
      */
-    SelectorDO selectByName(String name);
-    
+    List<SelectorDO> findByPluginIds(@Param("list") List<String> pluginIds);
+
     /**
-     * Find by name and plugin id selector do.
+     * select list by name and namespaceId.
      *
-     * @param name     the name
-     * @param pluginId the plugin id
+     * @param name        the name
+     * @param namespaceId namespaceId.
+     * @return selector do list
+     */
+    List<SelectorDO> selectByNameAndNamespaceId(String name, String namespaceId);
+
+    /**
+     * Find selector entity by name and plugin id and namespaceId.
+     *
+     * @param name        the name
+     * @param pluginId    the plugin id
+     * @param namespaceId namespaceId.
      * @return the selector do
      */
-    SelectorDO findByNameAndPluginId(@Param("name") String name, @Param("pluginId") String pluginId);
-    
+    SelectorDO findByNameAndPluginIdAndNamespaceId(@Param("name") String name,
+                                                   @Param("pluginId") String pluginId,
+                                                   @Param("namespaceId") String namespaceId);
+
     /**
      * count selector by query.
      *
@@ -108,7 +122,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return {@linkplain Integer}
      */
     Integer countByQuery(SelectorQuery selectorQuery);
-    
+
     /**
      * insert selector.
      *
@@ -116,7 +130,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return rows int
      */
     int insert(SelectorDO selectorDO);
-    
+
     /**
      * insert selective selector.
      *
@@ -124,7 +138,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return rows int
      */
     int insertSelective(SelectorDO selectorDO);
-    
+
     /**
      * update selector.
      *
@@ -132,7 +146,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return rows int
      */
     int update(SelectorDO selectorDO);
-    
+
     /**
      * update selective selector.
      *
@@ -140,7 +154,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return rows int
      */
     int updateSelective(SelectorDO selectorDO);
-    
+
     /**
      * delete selector.
      *
@@ -148,7 +162,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return rows int
      */
     int delete(String id);
-    
+
     /**
      * delete selector.
      *
@@ -156,7 +170,7 @@ public interface SelectorMapper extends ExistProvider {
      * @return rows int
      */
     int deleteByIds(List<String> ids);
-    
+
     /**
      * Delete by plugin id int.
      *
@@ -164,14 +178,30 @@ public interface SelectorMapper extends ExistProvider {
      * @return the int
      */
     int deleteByPluginId(String pluginId);
-    
+
     /**
      * list all.
      *
      * @return {@linkplain List}
      */
     List<SelectorDO> selectAll();
-    
+
+    /**
+     * list all by namespaceId.
+     *
+     * @param namespaceId the namespaceId
+     * @return {@linkplain List}
+     */
+    List<SelectorDO> selectAllByNamespaceId(String namespaceId);
+
+    /**
+     * list all by namespaceId list.
+     *
+     * @param namespaceIds the namespaceIds
+     * @return {@linkplain List}
+     */
+    List<SelectorDO> selectAllByNamespaceIds(List<String> namespaceIds);
+
     /**
      * select by condition.
      *
@@ -179,4 +209,29 @@ public interface SelectorMapper extends ExistProvider {
      * @return view data list
      */
     List<SelectorVO> selectByCondition(@Param("condition") SelectorQueryCondition condition);
+
+    /**
+     * selectByDiscoveryHandlerId.
+     *
+     * @param discoveryHandlerId discoveryHandlerId
+     * @return SelectorDO
+     */
+    SelectorDO selectByDiscoveryHandlerId(@Param("discoveryHandlerId") String discoveryHandlerId);
+
+    /**
+     * selectByDiscoveryId.
+     *
+     * @param discoveryId discoveryId
+     * @return SelectorDOs
+     */
+    List<SelectorDO> selectByDiscoveryId(@Param("discoveryId") String discoveryId);
+
+    /**
+     * update status.
+     *
+     * @param id id
+     * @param enabled enabled
+     * @return result
+     */
+    int updateEnable(@Param("id") String id, @Param("enabled") Boolean enabled);
 }

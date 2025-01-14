@@ -26,7 +26,7 @@ import org.apache.shenyu.common.utils.UUIDUtils;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
@@ -62,7 +62,7 @@ public class MockRequestRecordMapperTest extends AbstractSpringIntegrationTest {
         assertEquals(queryResult.getPathVariable(), "");
         assertEquals(queryResult.getQuery(), "");
         assertEquals(queryResult.getHeader(), "");
-        assertEquals(queryResult.getBody(), null);
+        assertNull(queryResult.getBody());
     }
 
     @Test

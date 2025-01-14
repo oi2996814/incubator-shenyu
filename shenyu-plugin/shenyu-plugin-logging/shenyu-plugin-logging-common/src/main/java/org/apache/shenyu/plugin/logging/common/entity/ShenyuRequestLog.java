@@ -28,6 +28,8 @@ public class ShenyuRequestLog {
 
     private String method;
 
+    private String requestMethod;
+
     private String requestHeader;
 
     private String responseHeader;
@@ -58,10 +60,19 @@ public class ShenyuRequestLog {
 
     private String traceId;
 
+    private String selectorId;
+
+    private String ruleId;
+
     /**
      * path.
      */
     private String path;
+
+    /**
+     * namespace id.
+     */
+    private String namespaceId;
 
     /**
      * get module.
@@ -187,6 +198,24 @@ public class ShenyuRequestLog {
      */
     public void setMethod(final String method) {
         this.method = method;
+    }
+
+    /**
+     * get requestMethod.
+     *
+     * @return requestMethod
+     */
+    public String getRequestMethod() {
+        return requestMethod;
+    }
+
+    /**
+     * set method.
+     *
+     * @param requestMethod requestMethod
+     */
+    public void setRequestMethod(final String requestMethod) {
+        this.requestMethod = requestMethod;
     }
 
     /**
@@ -405,6 +434,61 @@ public class ShenyuRequestLog {
         this.path = path;
     }
 
+    /**
+     * get request selectorId.
+     *
+     * @return request selectorId
+     */
+    public String getSelectorId() {
+        return selectorId;
+    }
+
+    /**
+     * request selectorId.
+     *
+     * @param selectorId request selectorId
+     */
+    public void setSelectorId(final String selectorId) {
+        this.selectorId = selectorId;
+    }
+
+
+    /**
+     * get request ruleId.
+     *
+     * @return request ruleId
+     */
+    public String getRuleId() {
+        return ruleId;
+    }
+
+    /**
+     * get namespaceId.
+     *
+     * @return namespaceId
+     */
+    public String getNamespaceId() {
+        return namespaceId;
+    }
+
+    /**
+     * set namespaceId.
+     *
+     * @param namespaceId namespaceId
+     */
+    public void setNamespaceId(final String namespaceId) {
+        this.namespaceId = namespaceId;
+    }
+
+    /**
+     * request ruleId.
+     *
+     * @param ruleId request ruleId
+     */
+    public void setRuleId(final String ruleId) {
+        this.ruleId = ruleId;
+    }
+
     @Override
     public String toString() {
         return "ShenyuRequestLog{"
@@ -427,6 +511,9 @@ public class ShenyuRequestLog {
                 + ", module=" + module
                 + ", traceId=" + traceId
                 + ", path=" + path
+                + ", selectorId=" + selectorId
+                + ", ruleId=" + ruleId
+                + ", namespaceId=" + namespaceId
                 + '}';
     }
 }

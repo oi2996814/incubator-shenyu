@@ -18,10 +18,13 @@
 package org.apache.shenyu.springboot.sync.data.etcd;
 
 import io.etcd.jetcd.Client;
+import org.apache.shenyu.common.config.ShenyuConfig;
 import org.apache.shenyu.sync.data.api.AuthDataSubscriber;
 import org.apache.shenyu.sync.data.api.MetaDataSubscriber;
 import org.apache.shenyu.sync.data.api.PluginDataSubscriber;
 import org.apache.shenyu.sync.data.api.SyncDataService;
+import org.apache.shenyu.sync.data.api.DiscoveryUpstreamDataSubscriber;
+import org.apache.shenyu.sync.data.api.ProxySelectorDataSubscriber;
 import org.apache.shenyu.sync.data.etcd.EtcdClient;
 import org.apache.shenyu.sync.data.etcd.EtcdSyncDataService;
 import org.slf4j.Logger;
@@ -50,20 +53,31 @@ public class EtcdSyncDataConfiguration {
     /**
      * Sync data service.
      *
+     * @param shenyuConfig the shenyu config
      * @param etcdClients the etcd client
      * @param pluginSubscriber the plugin subscriber
      * @param metaSubscribers the meta subscribers
      * @param authSubscribers the auth subscribers
+     * @param proxySelectorDataSubscribers the proxy selector data subscribers
+     * @param discoveryUpstreamDataSubscribers the discovery upstream data subscribers
      * @return the sync data service
      */
     @Bean
-    public SyncDataService syncDataService(final ObjectProvider<EtcdClient> etcdClients,
+    public SyncDataService syncDataService(final ObjectProvider<ShenyuConfig> shenyuConfig,
+                                           final ObjectProvider<EtcdClient> etcdClients,
                                            final ObjectProvider<PluginDataSubscriber> pluginSubscriber,
                                            final ObjectProvider<List<MetaDataSubscriber>> metaSubscribers,
-                                           final ObjectProvider<List<AuthDataSubscriber>> authSubscribers) {
+                                           final ObjectProvider<List<AuthDataSubscriber>> authSubscribers,
+                                           final ObjectProvider<List<ProxySelectorDataSubscriber>> proxySelectorDataSubscribers,
+                                           final ObjectProvider<List<DiscoveryUpstreamDataSubscriber>> discoveryUpstreamDataSubscribers) {
         LOGGER.info("you use etcd sync shenyu data.......");
-        return new EtcdSyncDataService(etcdClients.getIfAvailable(), pluginSubscriber.getIfAvailable(),
-                metaSubscribers.getIfAvailable(Collections::emptyList), authSubscribers.getIfAvailable(Collections::emptyList));
+        return new EtcdSyncDataService(shenyuConfig.getIfAvailable(),
+                etcdClients.getIfAvailable(),
+                pluginSubscriber.getIfAvailable(),
+                metaSubscribers.getIfAvailable(Collections::emptyList),
+                authSubscribers.getIfAvailable(Collections::emptyList),
+                proxySelectorDataSubscribers.getIfAvailable(Collections::emptyList),
+                discoveryUpstreamDataSubscribers.getIfAvailable(Collections::emptyList));
     }
 
     /**

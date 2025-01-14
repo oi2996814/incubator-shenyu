@@ -25,6 +25,7 @@ import org.apache.shenyu.admin.model.entity.ShenyuDictDO;
 import org.apache.shenyu.admin.model.page.CommonPager;
 import org.apache.shenyu.admin.model.page.PageParameter;
 import org.apache.shenyu.admin.model.query.ShenyuDictQuery;
+import org.apache.shenyu.admin.model.result.ConfigImportResult;
 import org.apache.shenyu.admin.model.vo.ShenyuDictVO;
 import org.apache.shenyu.admin.service.impl.ShenyuDictServiceImpl;
 import org.apache.shenyu.admin.service.publish.DictEventPublisher;
@@ -41,6 +42,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.comparesEqualTo;
@@ -142,14 +145,29 @@ public final class ShenyuDictServiceTest {
         pageParameter.setTotalCount(10);
         pageParameter.setTotalPage(pageParameter.getTotalCount() / pageParameter.getPageSize());
         ShenyuDictQuery shenyuDictQuery = new ShenyuDictQuery("1", "t", "t_n", pageParameter);
-        List<ShenyuDictDO> shenyuDictDOList = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            ShenyuDictDO shenyuDictVO = buildShenyuDictDO();
-            shenyuDictDOList.add(shenyuDictVO);
-        }
+        List<ShenyuDictDO> shenyuDictDOList = IntStream.range(0, 10).mapToObj(i -> buildShenyuDictDO()).collect(Collectors.toList());
         given(this.shenyuDictMapper.selectByQuery(shenyuDictQuery)).willReturn(shenyuDictDOList);
         final CommonPager<ShenyuDictVO> pluginDOCommonPager = this.shenyuDictService.listByPage(shenyuDictQuery);
         assertEquals(pluginDOCommonPager.getDataList().size(), shenyuDictDOList.size());
+    }
+
+    @Test
+    public void testListAllData() {
+        List<ShenyuDictDO> shenyuDictDOList = IntStream.range(0, 10).mapToObj(i -> buildShenyuDictDO()).collect(Collectors.toList());
+        given(this.shenyuDictMapper.selectByQuery(any())).willReturn(shenyuDictDOList);
+        List<ShenyuDictVO> shenyuDictVOList = shenyuDictService.listAllData();
+        assertEquals(shenyuDictVOList.size(), shenyuDictDOList.size());
+    }
+
+    @Test
+    public void testImportData() {
+        List<ShenyuDictDO> shenyuDictDOList = Collections.singletonList(buildShenyuDictDO("haha"));
+        given(this.shenyuDictMapper.selectByQuery(any())).willReturn(shenyuDictDOList);
+        List<ShenyuDictDTO> shenyuDictDTOList = Collections.singletonList(buildShenyuDictDTO(null, "lala"));
+        ConfigImportResult configImportResult = shenyuDictService.importData(shenyuDictDTOList);
+
+        assertNotNull(configImportResult);
+        assertEquals(configImportResult.getSuccessCount(), shenyuDictDTOList.size());
     }
 
     private ShenyuDictDTO buildShenyuDictDTO() {
@@ -171,8 +189,33 @@ public final class ShenyuDictServiceTest {
         return shenyuDictDTO;
     }
 
+    private ShenyuDictDTO buildShenyuDictDTO(final String id, final String name) {
+        ShenyuDictDTO shenyuDictDTO = new ShenyuDictDTO();
+        if (StringUtils.isNotBlank(id)) {
+            shenyuDictDTO.setId(id);
+        }
+        shenyuDictDTO.setDesc("test");
+        shenyuDictDTO.setSort(1);
+        shenyuDictDTO.setDesc("test");
+        shenyuDictDTO.setDictCode("t_dict_1");
+        shenyuDictDTO.setDictName("t_d_v" + name);
+        shenyuDictDTO.setEnabled(false);
+        shenyuDictDTO.setType("rule");
+        return shenyuDictDTO;
+    }
+
     private ShenyuDictDO buildShenyuDictDO() {
         ShenyuDictDO shenyuDictDO = ShenyuDictDO.buildShenyuDictDO(buildShenyuDictDTO());
+        Optional.ofNullable(shenyuDictDO).ifPresent(it -> {
+            Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+            it.setDateCreated(now);
+            it.setDateUpdated(now);
+        });
+        return shenyuDictDO;
+    }
+
+    private ShenyuDictDO buildShenyuDictDO(final String name) {
+        ShenyuDictDO shenyuDictDO = ShenyuDictDO.buildShenyuDictDO(buildShenyuDictDTO("", name));
         Optional.ofNullable(shenyuDictDO).ifPresent(it -> {
             Timestamp now = Timestamp.valueOf(LocalDateTime.now());
             it.setDateCreated(now);

@@ -34,6 +34,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -56,21 +57,21 @@ public final class RegisterServerConsumerExecutor extends QueueConsumerExecutor<
         if (CollectionUtils.isEmpty(results)) {
             return;
         }
-        
         selectExecutor(results).executor(results);
     }
     
     private boolean isValidData(final Object data) {
         if (data instanceof URIRegisterDTO) {
             URIRegisterDTO uriRegisterDTO = (URIRegisterDTO) data;
-            return StringUtils.isNoneBlank(uriRegisterDTO.getContextPath(), uriRegisterDTO.getRpcType());
+            return StringUtils.isNoneBlank(uriRegisterDTO.getContextPath(), uriRegisterDTO.getRpcType(), uriRegisterDTO.getNamespaceId());
         }
         if (data instanceof MetaDataRegisterDTO) {
             MetaDataRegisterDTO metaDataRegisterDTO = (MetaDataRegisterDTO) data;
             return StringUtils.isNoneBlank(metaDataRegisterDTO.getAppName(),
                     metaDataRegisterDTO.getPath(),
                     metaDataRegisterDTO.getRuleName(),
-                    metaDataRegisterDTO.getRpcType());
+                    metaDataRegisterDTO.getRpcType(),
+                    metaDataRegisterDTO.getNamespaceId());
         }
         return true;
     }
@@ -92,7 +93,7 @@ public final class RegisterServerConsumerExecutor extends QueueConsumerExecutor<
             Map<DataType, ExecutorTypeSubscriber<DataTypeParent>> maps = getSubscribers()
                     .stream()
                     .map(e -> (ExecutorTypeSubscriber<DataTypeParent>) e)
-                    .collect(Collectors.toMap(ExecutorTypeSubscriber::getType, e -> e));
+                    .collect(Collectors.toMap(ExecutorTypeSubscriber::getType, Function.identity()));
             return new RegisterServerConsumerExecutor(maps);
         }
     

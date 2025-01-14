@@ -21,16 +21,22 @@ import org.apache.shenyu.plugin.api.HandleCache;
 
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * The selector or rule handle base cache.
  */
 public class CommonHandleCache<K, V> implements HandleCache<K, V> {
-
+    
     /**
-     * selectorId.ruleName -> handle.
+     * selectorId_ruleId -> handle.
      */
     private final ConcurrentHashMap<K, V> cached = new ConcurrentHashMap<>();
+    
+    @Override
+    public V obtainHandle(final K key, final Supplier<V> supplier) {
+        return cached.getOrDefault(key, supplier.get());
+    }
 
     @Override
     public V obtainHandle(final K key) {
@@ -39,12 +45,21 @@ public class CommonHandleCache<K, V> implements HandleCache<K, V> {
 
     @Override
     public void cachedHandle(final K key, final V value) {
-        Optional.ofNullable(key).ifPresent(data -> cached.put(key, value));
+        Optional.ofNullable(key).ifPresent(data_key -> Optional.ofNullable(value).ifPresent(data_value -> cached.put(data_key, data_value)));
     }
 
     @Override
     public void removeHandle(final K key) {
         Optional.ofNullable(key).ifPresent(cached::remove);
+    }
+    
+    /**
+     * Get all cached.
+     *
+     * @return all cached
+     */
+    public ConcurrentHashMap<K, V> getAllCache() {
+        return cached;
     }
 }
 

@@ -45,6 +45,9 @@
   <a target="_blank" href="https://hub.docker.com/r/apache/shenyu-bootstrap/tags">
     <image src="https://img.shields.io/docker/pulls/apache/shenyu-bootstrap" alt="Docker Pulls"/>
   </a>
+  <a target="_blank" href="https://gitpod.io/#https://github.com/apache/shenyu">
+    <image src="https://img.shields.io/badge/Contribute%20with-Gitpod-908a85?logo=gitpod&color=green"/>
+  </a>
 </p>
 <br/>
 
@@ -85,25 +88,29 @@ He is known as one of the three greatest kings of ancient China, along with Yao 
 
 # Quick Start (docker)
 
+### Create network for Shenyu
+
+```
+> docker network create shenyu
+```
+
 ### Run Apache ShenYu Admin
 
 ```
 > docker pull apache/shenyu-admin
-> docker network create shenyu
-> docker run -d -p 9095:9095 --net shenyu apache/shenyu-admin
+> docker run -d --name shenyu-admin-quickstart -p 9095:9095 --net shenyu apache/shenyu-admin
 ```
 
 ### Run Apache ShenYu Bootstrap
 
 ```
-> docker network create shenyu
 > docker pull apache/shenyu-bootstrap
-> docker run -d -p 9195:9195 --net shenyu apache/shenyu-bootstrap
+> docker run -d --name shenyu-quickstart -p 9195:9195 -e "shenyu.local.enabled=true" -e SHENYU_SYNC_WEBSOCKET_URLS=ws://shenyu-admin-quickstart:9095/websocket --net shenyu apache/shenyu-bootstrap
 ```                       
 
 ### Set router
 
-* Real requests  ：http://127.0.0.1:8080/helloworld,
+* Real request  ：http://127.0.0.1:8080/helloworld,
 
 ```json
 {
@@ -189,7 +196,7 @@ curl --location --request POST 'http://localhost:9195/shenyu/plugin/selectorAndR
 
 # Prerequisite
  
-   * JDK 1.8+
+   * JDK 17+
    
 --- 
         

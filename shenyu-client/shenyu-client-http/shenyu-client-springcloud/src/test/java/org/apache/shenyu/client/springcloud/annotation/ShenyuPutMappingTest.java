@@ -59,8 +59,8 @@ public class ShenyuPutMappingTest {
             assertEquals(requestMapping.path()[0], "/put");
             ShenyuSpringCloudClient shenyuSpringCloudClient = AnnotatedElementUtils.findMergedAnnotation(method, ShenyuSpringCloudClient.class);
             assertNotNull(shenyuSpringCloudClient);
-            assertEquals(shenyuSpringCloudClient.value(), "/put");
-            assertEquals(shenyuSpringCloudClient.path(), "/put");
+            assertEquals(shenyuSpringCloudClient.value()[0], "/put");
+            assertEquals(shenyuSpringCloudClient.path()[0], "/put");
             assertEquals(shenyuSpringCloudClient.ruleName(), "divide");
             assertFalse(shenyuSpringCloudClient.enabled());
             assertEquals(shenyuSpringCloudClient.desc(), "it`s test.");
@@ -71,7 +71,7 @@ public class ShenyuPutMappingTest {
 
         @ShenyuPutMapping(value = "/put", ruleName = "divide", enabled = false, desc = "it`s test.")
         public String put(@RequestBody final String body) {
-            return "" + body;
+            return body;
         }
     }
 }

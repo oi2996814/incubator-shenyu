@@ -19,9 +19,12 @@ package org.apache.shenyu.admin.service.impl;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.shenyu.admin.listener.DataChangedEvent;
-import org.apache.shenyu.admin.model.vo.PluginVO;
+import org.apache.shenyu.admin.model.vo.NamespacePluginVO;
 import org.apache.shenyu.admin.service.AppAuthService;
+import org.apache.shenyu.admin.service.DiscoveryService;
+import org.apache.shenyu.admin.service.DiscoveryUpstreamService;
 import org.apache.shenyu.admin.service.MetaDataService;
+import org.apache.shenyu.admin.service.NamespacePluginService;
 import org.apache.shenyu.admin.service.PluginService;
 import org.apache.shenyu.admin.service.RuleService;
 import org.apache.shenyu.admin.service.SelectorService;
@@ -32,11 +35,15 @@ import org.apache.shenyu.common.dto.RuleData;
 import org.apache.shenyu.common.dto.SelectorData;
 import org.apache.shenyu.common.enums.ConfigGroupEnum;
 import org.apache.shenyu.common.enums.DataEventTypeEnum;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -44,6 +51,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class SyncDataServiceImpl implements SyncDataService {
+    
+    private static final Logger LOG = LoggerFactory.getLogger(SyncDataServiceImpl.class);
 
     private final AppAuthService appAuthService;
 
@@ -51,6 +60,11 @@ public class SyncDataServiceImpl implements SyncDataService {
      * The Plugin service.
      */
     private final PluginService pluginService;
+
+    /**
+     * The Plugin Namespace service.
+     */
+    private final NamespacePluginService namespacePluginService;
 
     /**
      * The Selector service.
@@ -66,57 +80,131 @@ public class SyncDataServiceImpl implements SyncDataService {
 
     private final MetaDataService metaDataService;
 
+    private final DiscoveryService discoveryService;
+
+    private final DiscoveryUpstreamService discoveryUpstreamService;
+
     public SyncDataServiceImpl(final AppAuthService appAuthService,
                                final PluginService pluginService,
+                               final NamespacePluginService namespacePluginService,
                                final SelectorService selectorService,
                                final RuleService ruleService,
                                final ApplicationEventPublisher eventPublisher,
-                               final MetaDataService metaDataService) {
+                               final MetaDataService metaDataService,
+                               final DiscoveryUpstreamService discoveryUpstreamService,
+                               final DiscoveryService discoveryService) {
         this.appAuthService = appAuthService;
         this.pluginService = pluginService;
+        this.namespacePluginService = namespacePluginService;
         this.selectorService = selectorService;
         this.ruleService = ruleService;
         this.eventPublisher = eventPublisher;
         this.metaDataService = metaDataService;
+        this.discoveryUpstreamService = discoveryUpstreamService;
+        this.discoveryService = discoveryService;
     }
 
     @Override
     public boolean syncAll(final DataEventTypeEnum type) {
         appAuthService.syncData();
 
-        List<PluginData> pluginDataList = pluginService.listAll();
-        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.PLUGIN, type, pluginDataList));
+        List<PluginData> pluginDataList = namespacePluginService.listAll();
+        Map<String, List<PluginData>> namespacePluginDataList =
+                pluginDataList.stream().collect(Collectors.groupingBy(PluginData::getNamespaceId));
+        namespacePluginDataList.values().forEach(p -> {
+            eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.PLUGIN, type, p));
+        });
 
         List<SelectorData> selectorDataList = selectorService.listAll();
-        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.SELECTOR, type, selectorDataList));
+        Map<String, List<SelectorData>> namespaceSelectorDataList =
+                selectorDataList.stream().collect(Collectors.groupingBy(SelectorData::getNamespaceId));
+        namespaceSelectorDataList.values().forEach(s -> {
+            eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.SELECTOR, type, s));
+        });
 
         List<RuleData> ruleDataList = ruleService.listAll();
-        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.RULE, type, ruleDataList));
+        Map<String, List<RuleData>> namespaceRuleDataList =
+                ruleDataList.stream().collect(Collectors.groupingBy(RuleData::getNamespaceId));
+        namespaceRuleDataList.values().forEach(r -> {
+            eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.RULE, type, r));
+        });
 
         metaDataService.syncData();
-
+        discoveryService.syncData();
         return true;
     }
 
     @Override
-    public boolean syncPluginData(final String pluginId) {
-        PluginVO pluginVO = pluginService.findById(pluginId);
-        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.PLUGIN, DataEventTypeEnum.UPDATE,
-                Collections.singletonList(PluginTransfer.INSTANCE.mapDataTOVO(pluginVO))));
+    public boolean syncAllByNamespaceId(final DataEventTypeEnum type, final String namespaceId) {
+        appAuthService.syncDataByNamespaceId(namespaceId);
 
-        List<SelectorData> selectorDataList = selectorService.findByPluginId(pluginId);
-        if (CollectionUtils.isEmpty(selectorDataList)) {
-            return true;
+        List<PluginData> pluginDataList = namespacePluginService.listAll(namespaceId);
+
+        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.PLUGIN, type, pluginDataList));
+
+        List<SelectorData> selectorDataList = selectorService.listAllByNamespaceId(namespaceId);
+        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.SELECTOR, type, selectorDataList));
+
+        List<RuleData> ruleDataList = ruleService.listAllByNamespaceId(namespaceId);
+        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.RULE, type, ruleDataList));
+
+        metaDataService.syncDataByNamespaceId(namespaceId);
+        discoveryService.syncDataByNamespaceId(namespaceId);
+        return true;
+    }
+
+    @Override
+    public boolean syncPluginData(final String id) {
+        NamespacePluginVO namespacePluginVO = namespacePluginService.findById(id);
+        if (Objects.isNull(namespacePluginVO) || Objects.isNull(namespacePluginVO.getId())) {
+            LOG.error("namespace plugin is not existed");
+            return false;
         }
+        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.PLUGIN, DataEventTypeEnum.UPDATE,
+                Collections.singletonList(PluginTransfer.INSTANCE.mapToData(namespacePluginVO))));
 
-        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.SELECTOR, DataEventTypeEnum.REFRESH, selectorDataList));
+        List<SelectorData> selectorDataList = selectorService.findByPluginIdAndNamespaceId(namespacePluginVO.getPluginId(), namespacePluginVO.getNamespaceId());
 
-        List<String> selectorIdList = selectorDataList.stream().map(SelectorData::getId)
-                .collect(Collectors.toList());
-        List<RuleData> allRuleDataList = ruleService.findBySelectorIdList(selectorIdList);
+        if (!CollectionUtils.isEmpty(selectorDataList)) {
+            eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.SELECTOR, DataEventTypeEnum.REFRESH, selectorDataList));
 
-        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.RULE, DataEventTypeEnum.REFRESH, allRuleDataList));
+            List<String> selectorIdList = selectorDataList.stream().map(SelectorData::getId)
+                    .collect(Collectors.toList());
+            for (String selectorId : selectorIdList) {
+                discoveryUpstreamService.refreshBySelectorId(selectorId);
+            }
+            List<RuleData> allRuleDataList = ruleService.findBySelectorIdList(selectorIdList);
 
+            eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.RULE, DataEventTypeEnum.REFRESH, allRuleDataList));
+        }
+        return true;
+    }
+    
+    @Override
+    public boolean syncPluginData(final String namespaceId, final String pluginId) {
+        
+        NamespacePluginVO namespacePluginVO = namespacePluginService.findByNamespaceIdAndPluginId(namespaceId, pluginId);
+        if (Objects.isNull(namespacePluginVO) || Objects.isNull(namespacePluginVO.getPluginId())) {
+            LOG.error("namespace plugin is not existed");
+            return false;
+        }
+        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.PLUGIN, DataEventTypeEnum.UPDATE,
+                Collections.singletonList(PluginTransfer.INSTANCE.mapToData(namespacePluginVO))));
+        
+        List<SelectorData> selectorDataList = selectorService.findByPluginIdAndNamespaceId(namespacePluginVO.getPluginId(), namespacePluginVO.getNamespaceId());
+        
+        if (!CollectionUtils.isEmpty(selectorDataList)) {
+            eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.SELECTOR, DataEventTypeEnum.REFRESH, selectorDataList));
+            
+            List<String> selectorIdList = selectorDataList.stream().map(SelectorData::getId)
+                    .collect(Collectors.toList());
+            for (String selectorId : selectorIdList) {
+                discoveryUpstreamService.refreshBySelectorId(selectorId);
+            }
+            List<RuleData> allRuleDataList = ruleService.findBySelectorIdList(selectorIdList);
+            
+            eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.RULE, DataEventTypeEnum.REFRESH, allRuleDataList));
+        }
         return true;
     }
 }

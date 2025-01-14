@@ -23,9 +23,10 @@ spring:
     allow-bean-definition-overriding: true
 
 shenyu:
+  namespace: 649330b6-c2d7-4edc-be8e-8a54df9eb385
   register:
-    registerType: http #zookeeper #etcd #nacos #consul
-    serverLists: http://localhost:9095 #localhost:2181 #http://localhost:2379 #localhost:8848
+    registerType: http
+    serverLists: http://localhost:9095
     props:
       username: admin
       password: 123456
@@ -38,8 +39,9 @@ shenyu:
 dubbo:
   application:
     name: test-dubbo-service
+    serialize-check-status: DISABLE
   registry:
-    address: zookeeper://127.0.0.1:2181
+    address: nacos://127.0.0.1:8848
   protocol:
     name: dubbo
     port: 20888

@@ -17,6 +17,7 @@
 
 package org.apache.shenyu.client.spring.websocket.init;
 
+import java.util.Objects;
 import org.apache.shenyu.client.spring.websocket.annotation.ShenyuServerEndpoint;
 import org.apache.shenyu.common.exception.ShenyuException;
 import org.slf4j.Logger;
@@ -26,10 +27,10 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.web.context.support.WebApplicationObjectSupport;
 
-import javax.servlet.ServletContext;
-import javax.websocket.DeploymentException;
-import javax.websocket.server.ServerContainer;
-import javax.websocket.server.ServerEndpointConfig;
+import jakarta.servlet.ServletContext;
+import jakarta.websocket.DeploymentException;
+import jakarta.websocket.server.ServerContainer;
+import jakarta.websocket.server.ServerEndpointConfig;
 import java.util.Arrays;
 
 public class ShenyuServerEndpointerExporter extends WebApplicationObjectSupport {
@@ -58,8 +59,8 @@ public class ShenyuServerEndpointerExporter extends WebApplicationObjectSupport 
 
     @Override
     protected void initServletContext(final ServletContext servletContext) {
-        if (this.serverContainer == null) {
-            this.serverContainer = (ServerContainer) servletContext.getAttribute("javax.websocket.server.ServerContainer");
+        if (Objects.isNull(this.serverContainer)) {
+            this.serverContainer = (ServerContainer) servletContext.getAttribute("jakarta.websocket.server.ServerContainer");
         }
     }
 
@@ -74,7 +75,7 @@ public class ShenyuServerEndpointerExporter extends WebApplicationObjectSupport 
      */
     public void registerEndpoint(final Class<?> pojo) {
         ShenyuServerEndpoint annotation = AnnotatedElementUtils.findMergedAnnotation(pojo, ShenyuServerEndpoint.class);
-        if (annotation == null) {
+        if (Objects.isNull(annotation)) {
             throw new ShenyuException("Class missing annotation ShenyuServerEndpoint! class name: " + pojo.getName());
         }
 
@@ -83,7 +84,7 @@ public class ShenyuServerEndpointerExporter extends WebApplicationObjectSupport 
         ServerEndpointConfig.Configurator configurator = null;
         if (!configuratorClazz.equals(ServerEndpointConfig.Configurator.class)) {
             try {
-                configurator = (ServerEndpointConfig.Configurator) annotation.configurator().getConstructor().newInstance();
+                configurator = annotation.configurator().getConstructor().newInstance();
             } catch (ReflectiveOperationException ex) {
                 LOG.error("ShenyuServerEndpoint configurator init fail! Class name: {}, configurator name: {}", pojo.getName(), annotation.configurator().getName());
                 throw new ShenyuException(ex);
@@ -99,7 +100,7 @@ public class ShenyuServerEndpointerExporter extends WebApplicationObjectSupport 
 
     private void registerEndpoint(final ServerEndpointConfig endpointConfig) {
         ServerContainer serverContainer = this.getServerContainer();
-        Assert.state(serverContainer != null, "No ServerContainer set");
+        Assert.state(Objects.nonNull(serverContainer), "No ServerContainer set");
 
         try {
             if (this.logger.isDebugEnabled()) {

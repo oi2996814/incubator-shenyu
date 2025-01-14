@@ -17,7 +17,7 @@
 
 package org.apache.shenyu.admin.model.dto;
 
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -59,7 +59,6 @@ public final class RuleConditionDTO implements Serializable {
     /**
      * parameter value.
      */
-    @NotBlank
     private String paramValue;
 
     public RuleConditionDTO() {

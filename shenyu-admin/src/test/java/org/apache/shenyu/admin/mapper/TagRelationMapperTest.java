@@ -20,7 +20,8 @@ package org.apache.shenyu.admin.mapper;
 import com.google.common.collect.Lists;
 import java.sql.Timestamp;
 import java.util.List;
-import javax.annotation.Resource;
+import java.util.Objects;
+import jakarta.annotation.Resource;
 import org.apache.shenyu.admin.AbstractSpringIntegrationTest;
 import org.apache.shenyu.admin.model.entity.TagRelationDO;
 import org.apache.shenyu.admin.model.query.TagRelationQuery;
@@ -71,7 +72,7 @@ public class TagRelationMapperTest extends AbstractSpringIntegrationTest {
         int count = tagRelationMapper.insertSelective(record);
         assertThat(count, greaterThan(0));
         TagRelationDO tagRelationDO = tagRelationMapper.selectByPrimaryKey(record.getId());
-        assertThat(tagRelationDO != null, equalTo(true));
+        assertThat(Objects.nonNull(tagRelationDO), equalTo(true));
     }
 
     @Test

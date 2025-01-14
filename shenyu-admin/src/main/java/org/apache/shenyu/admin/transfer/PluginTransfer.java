@@ -18,8 +18,10 @@
 package org.apache.shenyu.admin.transfer;
 
 import org.apache.shenyu.admin.model.entity.PluginDO;
+import org.apache.shenyu.admin.model.vo.NamespacePluginVO;
 import org.apache.shenyu.admin.model.vo.PluginVO;
 import org.apache.shenyu.common.dto.PluginData;
+import org.springframework.util.Base64Utils;
 
 import java.util.Optional;
 
@@ -41,13 +43,14 @@ public enum PluginTransfer {
      */
     public PluginData mapToData(final PluginDO pluginDO) {
         return Optional.ofNullable(pluginDO)
-                .map(v -> PluginData.builder()
-                        .id(v.getId())
-                        .name(v.getName())
-                        .config(v.getConfig())
-                        .role(v.getRole())
-                        .enabled(v.getEnabled())
-                        .sort(v.getSort())
+                .map(element -> PluginData.builder()
+                        .id(element.getId())
+                        .name(element.getName())
+                        .config(element.getConfig())
+                        .role(element.getRole())
+                        .enabled(element.getEnabled())
+                        .sort(element.getSort())
+                        .pluginJar(Optional.ofNullable(element.getPluginJar()).map(Base64Utils::encodeToString).orElse(""))
                         .build())
                 .orElse(null);
     }
@@ -60,13 +63,35 @@ public enum PluginTransfer {
      */
     public PluginData mapDataTOVO(final PluginVO pluginVO) {
         return Optional.ofNullable(pluginVO)
-                .map(v -> PluginData.builder()
-                        .id(v.getId())
-                        .name(v.getName())
-                        .config(v.getConfig())
-                        .role(v.getRole())
-                        .enabled(v.getEnabled())
-                        .sort(v.getSort())
+                .map(element -> PluginData.builder()
+                        .id(element.getId())
+                        .name(element.getName())
+                        .config(element.getConfig())
+                        .role(element.getRole())
+                        .enabled(element.getEnabled())
+                        .sort(element.getSort())
+                        .pluginJar(element.getFile())
+                        .build())
+                .orElse(null);
+    }
+
+    /**
+     * Map to data plugin data.
+     *
+     * @param namespacePluginVO the namespacePlugin vo
+     * @return the plugin data
+     */
+    public PluginData mapToData(final NamespacePluginVO namespacePluginVO) {
+        return Optional.ofNullable(namespacePluginVO)
+                .map(element -> PluginData.builder()
+                        .id(element.getPluginId())
+                        .name(element.getName())
+                        .config(element.getConfig())
+                        .role(element.getRole())
+                        .enabled(element.getEnabled())
+                        .sort(element.getSort())
+                        .pluginJar(Optional.ofNullable(element.getPluginJar()).map(Base64Utils::encodeToString).orElse(""))
+                        .namespaceId(element.getNamespaceId())
                         .build())
                 .orElse(null);
     }

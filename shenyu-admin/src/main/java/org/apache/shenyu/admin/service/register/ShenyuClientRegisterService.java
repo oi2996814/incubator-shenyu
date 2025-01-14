@@ -18,6 +18,7 @@
 package org.apache.shenyu.admin.service.register;
 
 import org.apache.shenyu.common.constant.Constants;
+import org.apache.shenyu.register.common.dto.ApiDocRegisterDTO;
 import org.apache.shenyu.register.common.dto.MetaDataRegisterDTO;
 import org.apache.shenyu.register.common.dto.URIRegisterDTO;
 
@@ -42,15 +43,55 @@ public interface ShenyuClientRegisterService {
      * @return the string
      */
     String register(MetaDataRegisterDTO metaDataRegisterDTO);
+
+    /**
+     * registerApiDoc.
+     * @param apiDocRegisterDTO apiDocRegisterDTO
+     * @return String
+     */
+    String registerApiDoc(ApiDocRegisterDTO apiDocRegisterDTO);
+
+    /**
+     * check whether the namespace and plugin relation exists.
+     *
+     * @param namespaceId namespaceId
+     * @param pluginName plugin name
+     */
+    void checkNamespacePluginRel(String namespaceId, String pluginName);
     
     /**
      * Register uri string.
      *
      * @param selectorName the selector name
      * @param uriList the uri list
+     * @param namespaceId the namespace id
      * @return the string
      */
-    default String registerURI(final String selectorName, final List<URIRegisterDTO> uriList) {
+    default String registerURI(final String selectorName, final List<URIRegisterDTO> uriList, final String namespaceId) {
+        return Constants.SUCCESS;
+    }
+    
+    /**
+     * Register heartbeat.
+     *
+     * @param selectorName the selector name
+     * @param uriList the uri list
+     * @param namespaceId the namespace id
+     * @return the string
+     */
+    default String heartbeat(final String selectorName, final List<URIRegisterDTO> uriList, final String namespaceId) {
+        return Constants.SUCCESS;
+    }
+    
+    /**
+     * offline.
+     *
+     * @param selectorName the selector name
+     * @param uriList the uri list
+     * @param namespaceId the namespace id
+     * @return the string
+     */
+    default String offline(final String selectorName, final List<URIRegisterDTO> uriList, final String namespaceId) {
         return Constants.SUCCESS;
     }
     

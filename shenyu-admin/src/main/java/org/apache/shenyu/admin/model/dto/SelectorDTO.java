@@ -17,16 +17,17 @@
 
 package org.apache.shenyu.admin.model.dto;
 
+import org.apache.shenyu.admin.mapper.NamespaceMapper;
 import org.apache.shenyu.admin.mapper.PluginMapper;
 import org.apache.shenyu.admin.mapper.SelectorMapper;
 import org.apache.shenyu.admin.validation.annotation.Existed;
 import org.hibernate.validator.constraints.Range;
 
-import javax.validation.Valid;
-import javax.validation.constraints.Max;
-import javax.validation.constraints.Min;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Objects;
@@ -104,6 +105,21 @@ public final class SelectorDTO implements Serializable {
      * selector conditions.
      */
     private List<SelectorConditionDTO> selectorConditions;
+
+    @NotNull
+    private Boolean matchRestful;
+
+    /**
+     * selector rules.
+     */
+    private List<RuleDTO> selectorRules;
+
+    /**
+     * namespaceId.
+     */
+    @NotBlank
+    @Existed(message = "namespaceId is not existed", provider = NamespaceMapper.class)
+    private String namespaceId;
     
     public SelectorDTO() {
     }
@@ -118,7 +134,10 @@ public final class SelectorDTO implements Serializable {
                        final Boolean loged,
                        @NotNull final Boolean continued,
                        final String handle,
-                       @Valid final List<SelectorConditionDTO> selectorConditions) {
+                       @Valid final List<SelectorConditionDTO> selectorConditions,
+                       @NotNull final Boolean matchRestful,
+                       @Valid final List<RuleDTO> selectorRules,
+                       @Valid final String namespaceId) {
         this.id = id;
         this.pluginId = pluginId;
         this.name = name;
@@ -130,6 +149,9 @@ public final class SelectorDTO implements Serializable {
         this.continued = continued;
         this.handle = handle;
         this.selectorConditions = selectorConditions;
+        this.matchRestful = matchRestful;
+        this.selectorRules = selectorRules;
+        this.namespaceId = namespaceId;
     }
     
     /**
@@ -331,6 +353,60 @@ public final class SelectorDTO implements Serializable {
     }
     
     /**
+     * get match restful.
+     *
+     * @return match restful value
+     */
+    public Boolean getMatchRestful() {
+        return matchRestful;
+    }
+    
+    /**
+     * set match restful value.
+     *
+     * @param matchRestful match restful value
+     */
+    public void setMatchRestful(final Boolean matchRestful) {
+        this.matchRestful = matchRestful;
+    }
+
+    /**
+     * Gets the value of selectorRules.
+     *
+     * @return the value of selectorRules
+     */
+    public List<RuleDTO> getSelectorRules() {
+        return selectorRules;
+    }
+
+    /**
+     * Sets the selectorRules.
+     *
+     * @param selectorRules selectorRules
+     */
+    public void setSelectorRules(final List<RuleDTO> selectorRules) {
+        this.selectorRules = selectorRules;
+    }
+
+    /**
+     * get namespaceId.
+     *
+     * @return namespaceId
+     */
+    public String getNamespaceId() {
+        return namespaceId;
+    }
+
+    /**
+     * set namespaceId.
+     *
+     * @param namespaceId namespaceId
+     */
+    public void setNamespaceId(final String namespaceId) {
+        this.namespaceId = namespaceId;
+    }
+    
+    /**
      * builder method.
      *
      * @return builder object.
@@ -338,34 +414,30 @@ public final class SelectorDTO implements Serializable {
     public static SelectorDTO.SelectorDTOBuilder builder() {
         return new SelectorDTO.SelectorDTOBuilder();
     }
-    
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) {
             return true;
         }
-        if (!(o instanceof SelectorDTO)) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
         SelectorDTO that = (SelectorDTO) o;
-        return Objects.equals(id, that.id)
-                && Objects.equals(pluginId, that.pluginId)
-                && Objects.equals(name, that.name)
-                && Objects.equals(matchMode, that.matchMode)
-                && Objects.equals(type, that.type)
-                && Objects.equals(sort, that.sort)
-                && Objects.equals(enabled, that.enabled)
-                && Objects.equals(loged, that.loged)
-                && Objects.equals(continued, that.continued)
-                && Objects.equals(handle, that.handle)
-                && Objects.equals(selectorConditions, that.selectorConditions);
+        return Objects.equals(id, that.id) && Objects.equals(pluginId, that.pluginId) && Objects.equals(name, that.name)
+                && Objects.equals(matchMode, that.matchMode) && Objects.equals(type, that.type) && Objects.equals(sort, that.sort)
+                && Objects.equals(enabled, that.enabled) && Objects.equals(loged, that.loged) && Objects.equals(continued, that.continued)
+                && Objects.equals(handle, that.handle) && Objects.equals(selectorConditions, that.selectorConditions)
+                && Objects.equals(matchRestful, that.matchRestful) && Objects.equals(selectorRules, that.selectorRules)
+                && Objects.equals(namespaceId, that.namespaceId);
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(id, pluginId, name, matchMode, type, sort, enabled, loged, continued, handle, selectorConditions);
+        return Objects.hash(id, pluginId, name, matchMode, type, sort, enabled, loged, continued, handle,
+                selectorConditions, matchRestful, namespaceId);
     }
-    
+
     public static final class SelectorDTOBuilder {
         
         private String id;
@@ -389,6 +461,12 @@ public final class SelectorDTO implements Serializable {
         private String handle;
         
         private List<SelectorConditionDTO> selectorConditions;
+        
+        private Boolean matchRestful;
+
+        private List<RuleDTO> selectorRules;
+
+        private String namespaceId;
         
         private SelectorDTOBuilder() {
         }
@@ -513,6 +591,39 @@ public final class SelectorDTO implements Serializable {
             this.selectorConditions = selectorConditions;
             return this;
         }
+    
+        /**
+         * match restful.
+         *
+         * @param matchRestful the matchRestful value
+         * @return SelectorDTOBuilder
+         */
+        public SelectorDTOBuilder matchRestful(final Boolean matchRestful) {
+            this.matchRestful = matchRestful;
+            return this;
+        }
+
+        /**
+         * selectorRules.
+         *
+         * @param selectorRules the selectorRules.
+         * @return SelectorDTOBuilder.
+         */
+        public SelectorDTOBuilder selectorRules(final List<RuleDTO> selectorRules) {
+            this.selectorRules = selectorRules;
+            return this;
+        }
+
+        /**
+         * namespaceId.
+         *
+         * @param namespaceId namespaceId
+         * @return SelectorDOBuilder
+         */
+        public SelectorDTOBuilder namespaceId(final String namespaceId) {
+            this.namespaceId = namespaceId;
+            return this;
+        }
         
         /**
          * build method.
@@ -520,7 +631,8 @@ public final class SelectorDTO implements Serializable {
          * @return build object.
          */
         public SelectorDTO build() {
-            return new SelectorDTO(id, pluginId, name, matchMode, type, sort, enabled, loged, continued, handle, selectorConditions);
+            return new SelectorDTO(id, pluginId, name, matchMode, type, sort, enabled, loged, continued, handle,
+                    selectorConditions, matchRestful, selectorRules, namespaceId);
         }
     }
 }

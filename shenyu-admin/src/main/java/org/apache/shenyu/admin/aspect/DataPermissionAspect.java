@@ -31,6 +31,7 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.apache.shenyu.common.constant.AdminConstants.DATA_PERMISSION_RULE;
@@ -82,7 +83,7 @@ public class DataPermissionAspect {
     private Object[] getFilterSQLData(final ProceedingJoinPoint point) {
         DataPermission dataPermission = ((MethodSignature) point.getSignature()).getMethod().getAnnotation(DataPermission.class);
         Object[] args = point.getArgs();
-        if (dataPermission == null || args == null) {
+        if (Objects.isNull(dataPermission) || Objects.isNull(args)) {
             return args;
         }
         List<String> dataPermissionList = dataPermissionService.getDataPermission(JwtUtils.getUserInfo().getUserId());
@@ -94,7 +95,7 @@ public class DataPermissionAspect {
             case DATA_PERMISSION_SELECTOR:
             case DATA_PERMISSION_RULE:
                 Stream.of(args)
-                        .filter(arg -> arg instanceof FilterQuery)
+                        .filter(FilterQuery.class::isInstance)
                         .forEach(q -> ((FilterQuery) q).setFilterIds(dataPermissionList));
                 break;
             default:

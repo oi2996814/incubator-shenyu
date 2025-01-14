@@ -28,6 +28,8 @@
         <result column="sort" jdbcType="INTEGER" property="sort"/>
         <result column="enabled" jdbcType="TINYINT" property="enabled"/>
         <result column="loged" jdbcType="TINYINT" property="loged"/>
+        <result column="match_restful" jdbcType="TINYINT" property="matchRestful"/>
+        <result column="namespace_id" jdbcType="VARCHAR" property="namespaceId"/>
         <result column="handle" jdbcType="VARCHAR" property="handle"/>
     </resultMap>
 
@@ -41,7 +43,9 @@
         sort,
         enabled,
         loged,
-        handle
+        match_restful,
+        handle,
+        namespace_id
     </sql>
 
     <select id="selectById" parameterType="java.lang.String" resultMap="BaseResultMap">
@@ -132,6 +136,23 @@
           FROM rule
     </select>
 
+    <select id="selectAllByNamespaceId" resultType="org.apache.shenyu.admin.model.entity.RuleDO" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM rule
+        WHERE namespace_id = #{namespaceId, jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectAllByNamespaceIds" resultType="org.apache.shenyu.admin.model.entity.RuleDO" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM rule
+        WHERE namespace_id IN
+        <foreach item="namespaceId" collection="namespaceIds" open="(" separator="," close=")">
+            #{namespaceId, jdbcType=VARCHAR}
+        </foreach>
+    </select>
+
     <select id="existed" resultType="java.lang.Boolean">
         SELECT TRUE
           FROM rule
@@ -167,6 +188,9 @@
                     where data_id = rule.id
                         and user_id = #{condition.userId})
             </if>
+            <if test="condition.namespaceId != null and condition.namespaceId != ''">
+                AND namespace_id = #{condition.namespaceId, jdbcType=VARCHAR}
+            </if>
         </where>
     </select>
 
@@ -175,7 +199,7 @@
         from plugin p
         inner join selector s on p.id = s.plugin_id
         where s.id = #{selectorId}
-        limit 1;
+        limit 1
     </select>
     <select id="selectByIds" resultType="org.apache.shenyu.admin.model.entity.RuleDO">
         select *
@@ -196,7 +220,9 @@
                          sort,
                          enabled,
                          loged,
-                         handle)
+                         match_restful,
+                         handle,
+                         namespace_id)
                   VALUES (#{id, jdbcType=VARCHAR},
                           #{dateCreated, jdbcType=TIMESTAMP},
                           #{dateUpdated, jdbcType=TIMESTAMP},
@@ -206,7 +232,9 @@
                           #{sort, jdbcType=INTEGER},
                           #{enabled, jdbcType=TINYINT},
                           #{loged, jdbcType=TINYINT},
-                          #{handle, jdbcType=VARCHAR})
+                          #{matchRestful, jdbcType=TINYINT},
+                          #{handle, jdbcType=VARCHAR},
+                          #{namespaceId, jdbcType=VARCHAR})
     </insert>
 
     <insert id="insertSelective" parameterType="org.apache.shenyu.admin.model.entity.RuleDO">
@@ -237,8 +265,14 @@
             <if test="loged != null">
                 loged,
             </if>
+            <if test="matchRestful != null">
+                match_restful,
+            </if>
             <if test="handle != null">
                 handle,
+            </if>
+            <if test="namespaceId != null">
+                namespace_id,
             </if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
@@ -267,23 +301,30 @@
             <if test="loged != null">
                 #{loged, jdbcType=TINYINT},
             </if>
+            <if test="matchRestful != null">
+                #{matchRestful, jdbcType=TINYINT},
+            </if>
             <if test="handle != null">
                 #{handle, jdbcType=VARCHAR},
+            </if>
+            <if test="namespaceId != null">
+                #{namespaceId, jdbcType=VARCHAR},
             </if>
         </trim>
     </insert>
 
     <update id="update" parameterType="org.apache.shenyu.admin.model.entity.RuleDO">
         UPDATE rule
-           SET date_created = #{dateCreated, jdbcType=TIMESTAMP},
-               date_updated = #{dateUpdated, jdbcType=TIMESTAMP},
-               selector_id  = #{selectorId, jdbcType=VARCHAR},
-               name         = #{name, jdbcType=VARCHAR},
-               match_mode   = #{matchMode, jdbcType=INTEGER},
-               sort         = #{sort, jdbcType=INTEGER},
-               enabled      = #{enabled, jdbcType=TINYINT},
-               loged        = #{loged, jdbcType=TINYINT},
-               handle       = #{handle, jdbcType=VARCHAR}
+           SET date_created  = #{dateCreated, jdbcType=TIMESTAMP},
+               date_updated  = #{dateUpdated, jdbcType=TIMESTAMP},
+               selector_id   = #{selectorId, jdbcType=VARCHAR},
+               name          = #{name, jdbcType=VARCHAR},
+               match_mode    = #{matchMode, jdbcType=INTEGER},
+               sort          = #{sort, jdbcType=INTEGER},
+               enabled       = #{enabled, jdbcType=TINYINT},
+               loged         = #{loged, jdbcType=TINYINT},
+               match_restful = #{matchRestful, jdbcType=TINYINT},
+               handle        = #{handle, jdbcType=VARCHAR}
          WHERE id = #{id, jdbcType=VARCHAR}
     </update>
 
@@ -314,11 +355,19 @@
             <if test="loged != null">
                 loged = #{loged, jdbcType=TINYINT},
             </if>
+            <if test="matchRestful != null">
+                match_restful = #{matchRestful, jdbcType=TINYINT},
+            </if>
             <if test="handle != null">
                 handle = #{handle, jdbcType=VARCHAR},
             </if>
         </set>
         WHERE id = #{id, jdbcType=VARCHAR}
+        AND namespace_id = #{namespaceId, jdbcType=VARCHAR}
+    </update>
+
+    <update id="updateEnable">
+        UPDATE rule SET enabled = #{enabled, jdbcType=TINYINT} WHERE id = #{id, jdbcType=VARCHAR}
     </update>
 
     <delete id="delete" parameterType="java.lang.String">

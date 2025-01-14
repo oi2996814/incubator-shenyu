@@ -36,4 +36,14 @@ public enum DataType {
      * Api doc type enum.
      */
     API_DOC,
+
+    /**
+     * Heartbeat type enum.
+     */
+    HEARTBEAT,
+
+    /**
+     * Discovery config type enum.
+     */
+    DISCOVERY_CONFIG,
 }

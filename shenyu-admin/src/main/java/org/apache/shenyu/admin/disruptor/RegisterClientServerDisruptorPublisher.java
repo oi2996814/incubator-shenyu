@@ -18,13 +18,16 @@
 package org.apache.shenyu.admin.disruptor;
 
 import org.apache.shenyu.admin.disruptor.executor.RegisterServerConsumerExecutor.RegisterServerExecutorFactory;
+import org.apache.shenyu.admin.disruptor.subscriber.ApiDocExecutorSubscriber;
+import org.apache.shenyu.admin.disruptor.subscriber.DiscoveryConfigRegisterExecutorSubscriber;
 import org.apache.shenyu.admin.disruptor.subscriber.MetadataExecutorSubscriber;
 import org.apache.shenyu.admin.disruptor.subscriber.URIRegisterExecutorSubscriber;
+import org.apache.shenyu.admin.register.ShenyuClientServerRegisterPublisher;
+import org.apache.shenyu.admin.service.DiscoveryService;
 import org.apache.shenyu.admin.service.register.ShenyuClientRegisterService;
 import org.apache.shenyu.disruptor.DisruptorProviderManage;
 import org.apache.shenyu.disruptor.provider.DisruptorProvider;
 import org.apache.shenyu.register.common.type.DataTypeParent;
-import org.apache.shenyu.register.client.server.api.ShenyuClientServerRegisterPublisher;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -53,11 +56,14 @@ public class RegisterClientServerDisruptorPublisher implements ShenyuClientServe
      * start.
      *
      * @param shenyuClientRegisterService the shenyu client register service
+     * @param discoveryService the discovery service
      */
-    public void start(final Map<String, ShenyuClientRegisterService> shenyuClientRegisterService) {
+    public void start(final Map<String, ShenyuClientRegisterService> shenyuClientRegisterService, final DiscoveryService discoveryService) {
         RegisterServerExecutorFactory factory = new RegisterServerExecutorFactory();
         factory.addSubscribers(new URIRegisterExecutorSubscriber(shenyuClientRegisterService));
         factory.addSubscribers(new MetadataExecutorSubscriber(shenyuClientRegisterService));
+        factory.addSubscribers(new ApiDocExecutorSubscriber(shenyuClientRegisterService));
+        factory.addSubscribers(new DiscoveryConfigRegisterExecutorSubscriber(discoveryService));
         providerManage = new DisruptorProviderManage<>(factory);
         providerManage.startup();
     }

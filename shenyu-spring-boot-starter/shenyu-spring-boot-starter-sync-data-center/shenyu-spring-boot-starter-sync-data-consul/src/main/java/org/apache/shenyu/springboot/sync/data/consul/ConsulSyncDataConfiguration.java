@@ -18,9 +18,14 @@
 package org.apache.shenyu.springboot.sync.data.consul;
 
 import com.ecwid.consul.v1.ConsulClient;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.shenyu.common.config.ShenyuConfig;
+import org.apache.shenyu.common.exception.ShenyuException;
 import org.apache.shenyu.sync.data.api.AuthDataSubscriber;
+import org.apache.shenyu.sync.data.api.DiscoveryUpstreamDataSubscriber;
 import org.apache.shenyu.sync.data.api.MetaDataSubscriber;
 import org.apache.shenyu.sync.data.api.PluginDataSubscriber;
+import org.apache.shenyu.sync.data.api.ProxySelectorDataSubscriber;
 import org.apache.shenyu.sync.data.api.SyncDataService;
 import org.apache.shenyu.sync.data.consul.ConsulSyncDataService;
 import org.apache.shenyu.sync.data.consul.config.ConsulConfig;
@@ -33,6 +38,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Collections;
 import java.util.List;
 
@@ -49,22 +56,29 @@ public class ConsulSyncDataConfiguration {
     /**
      * Sync data service.
      *
+     * @param shenyuConfig     the shenyu config
      * @param consulClient     the consul client
      * @param consulConfig     the consul config
      * @param pluginSubscriber the plugin subscriber
      * @param metaSubscribers   the meta subscribers
      * @param authSubscribers   the auth subscribers
+     * @param proxySelectorSubscribers   the proxySelectorSubscribers
+     * @param discoveryUpstreamSubscribers   the discoveryUpstreamSubscribers
      * @return the sync data service
      */
     @Bean
-    public SyncDataService syncDataService(final ObjectProvider<ConsulClient> consulClient,
+    public SyncDataService syncDataService(final ObjectProvider<ShenyuConfig> shenyuConfig,
+                                           final ObjectProvider<ConsulClient> consulClient,
                                            final ObjectProvider<ConsulConfig> consulConfig,
                                            final ObjectProvider<PluginDataSubscriber> pluginSubscriber,
                                            final ObjectProvider<List<MetaDataSubscriber>> metaSubscribers,
-                                           final ObjectProvider<List<AuthDataSubscriber>> authSubscribers) {
+                                           final ObjectProvider<List<AuthDataSubscriber>> authSubscribers,
+                                           final ObjectProvider<List<ProxySelectorDataSubscriber>> proxySelectorSubscribers,
+                                           final ObjectProvider<List<DiscoveryUpstreamDataSubscriber>> discoveryUpstreamSubscribers) {
         LOGGER.info("you use consul sync shenyu data.......");
-        return new ConsulSyncDataService(consulClient.getIfAvailable(), consulConfig.getIfAvailable(), pluginSubscriber.getIfAvailable(),
-                metaSubscribers.getIfAvailable(Collections::emptyList), authSubscribers.getIfAvailable(Collections::emptyList));
+        return new ConsulSyncDataService(shenyuConfig.getIfAvailable(), consulClient.getIfAvailable(), consulConfig.getIfAvailable(), pluginSubscriber.getIfAvailable(),
+                metaSubscribers.getIfAvailable(Collections::emptyList), authSubscribers.getIfAvailable(Collections::emptyList),
+                proxySelectorSubscribers.getIfAvailable(Collections::emptyList), discoveryUpstreamSubscribers.getIfAvailable(Collections::emptyList));
     }
 
     /**
@@ -86,6 +100,15 @@ public class ConsulSyncDataConfiguration {
      */
     @Bean
     public ConsulClient consulClient(final ConsulConfig consulConfig) {
-        return new ConsulClient(consulConfig.getUrl());
+        String url = consulConfig.getUrl();
+        if (StringUtils.isBlank(url)) {
+            throw new ShenyuException("sync.consul.url can not be null.");
+        }
+        try {
+            URL consulUrl = new URL(url);
+            return consulUrl.getPort() < 0 ? new ConsulClient(consulUrl.getHost()) : new ConsulClient(consulUrl.getHost(), consulUrl.getPort());
+        } catch (MalformedURLException e) {
+            throw new ShenyuException("sync.consul.url formatter is not incorrect.");
+        }
     }
 }

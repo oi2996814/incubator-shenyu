@@ -39,7 +39,7 @@ public interface DashboardUserService {
      * @return rows
      */
     int createOrUpdate(DashboardUserDTO dashboardUserDTO);
-    
+
     /**
      * create dashboard user.
      *
@@ -47,9 +47,9 @@ public interface DashboardUserService {
      * @return rows
      */
     int create(DashboardUserDTO dashboardUserDTO);
-    
+
     /**
-     *  update dashboard user.
+     * update dashboard user.
      *
      * @param dashboardUserDTO {@linkplain DashboardUserDTO}
      * @return rows
@@ -102,9 +102,10 @@ public interface DashboardUserService {
      *
      * @param userName default username is admin
      * @param password admin password
+     * @param clientId client id
      * @return {@linkplain LoginDashboardUserVO}
      */
-    LoginDashboardUserVO login(String userName, String password);
+    LoginDashboardUserVO login(String userName, String password, String clientId);
 
     /**
      * modify password.
@@ -113,4 +114,12 @@ public interface DashboardUserService {
      * @return rows
      */
     int modifyPassword(DashboardUserModifyPasswordDTO dashboardUserModifyPasswordDTO);
+
+    /**
+     * check password.
+     *
+     * @param userId userId
+     * @return Passed or not
+     */
+    boolean checkUserPassword(String userId);
 }

@@ -30,23 +30,26 @@ import org.apache.shenyu.admin.mapper.SelectorConditionMapper;
 import org.apache.shenyu.admin.mapper.SelectorMapper;
 import org.apache.shenyu.admin.model.entity.PluginDO;
 import org.apache.shenyu.admin.model.entity.SelectorDO;
-import org.apache.shenyu.admin.model.event.selector.SelectorCreatedEvent;
-import org.apache.shenyu.admin.model.event.selector.SelectorUpdatedEvent;
+import org.apache.shenyu.admin.model.event.discovery.DiscoveryStreamUpdatedEvent;
 import org.apache.shenyu.admin.model.query.SelectorConditionQuery;
+import org.apache.shenyu.admin.service.DiscoveryUpstreamService;
 import org.apache.shenyu.admin.service.converter.SelectorHandleConverterFactor;
 import org.apache.shenyu.admin.transfer.ConditionTransfer;
+import org.apache.shenyu.admin.transfer.DiscoveryTransfer;
 import org.apache.shenyu.admin.utils.CommonUpstreamUtils;
-import org.apache.shenyu.admin.utils.SelectorUtil;
 import org.apache.shenyu.common.concurrent.ShenyuThreadFactory;
 import org.apache.shenyu.common.constant.Constants;
 import org.apache.shenyu.common.dto.ConditionData;
+import org.apache.shenyu.common.dto.DiscoverySyncData;
+import org.apache.shenyu.common.dto.DiscoveryUpstreamData;
 import org.apache.shenyu.common.dto.SelectorData;
 import org.apache.shenyu.common.dto.convert.selector.CommonUpstream;
-import org.apache.shenyu.common.dto.convert.selector.DivideUpstream;
 import org.apache.shenyu.common.dto.convert.selector.ZombieUpstream;
 import org.apache.shenyu.common.enums.ConfigGroupEnum;
 import org.apache.shenyu.common.enums.DataEventTypeEnum;
 import org.apache.shenyu.common.enums.PluginEnum;
+import org.apache.shenyu.common.utils.GsonUtils;
+import org.apache.shenyu.common.utils.MapUtils;
 import org.apache.shenyu.common.utils.UpstreamCheckUtils;
 import org.apache.shenyu.register.common.config.ShenyuRegisterCenterConfig;
 import org.slf4j.Logger;
@@ -55,18 +58,21 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -96,6 +102,8 @@ public class UpstreamCheckService {
 
     private final boolean checked;
 
+    private final Integer scheduledThreads;
+
     private final SelectorMapper selectorMapper;
 
     private final ApplicationEventPublisher eventPublisher;
@@ -106,9 +114,15 @@ public class UpstreamCheckService {
 
     private final SelectorHandleConverterFactor converterFactor;
 
+    private final DiscoveryUpstreamService discoveryUpstreamService;
+
     private ScheduledThreadPoolExecutor executor;
 
     private ScheduledFuture<?> scheduledFuture;
+
+    private ScheduledThreadPoolExecutor invokeExecutor;
+
+    private final List<CompletableFuture<Void>> futures = Lists.newArrayList();
 
     /**
      * Instantiates a new Upstream check service.
@@ -125,31 +139,35 @@ public class UpstreamCheckService {
                                 final PluginMapper pluginMapper,
                                 final SelectorConditionMapper selectorConditionMapper,
                                 final ShenyuRegisterCenterConfig shenyuRegisterCenterConfig,
-                                final SelectorHandleConverterFactor converterFactor) {
+                                final SelectorHandleConverterFactor converterFactor,
+                                final DiscoveryUpstreamService discoveryUpstreamService) {
         this.selectorMapper = selectorMapper;
         this.eventPublisher = eventPublisher;
         this.pluginMapper = pluginMapper;
         this.selectorConditionMapper = selectorConditionMapper;
         this.converterFactor = converterFactor;
+        this.discoveryUpstreamService = discoveryUpstreamService;
         Properties props = shenyuRegisterCenterConfig.getProps();
         this.checked = Boolean.parseBoolean(props.getProperty(Constants.IS_CHECKED, Constants.DEFAULT_CHECK_VALUE));
+        this.scheduledThreads = Integer.parseInt(props.getProperty(Constants.ZOMBIE_CHECK_THREADS, Constants.ZOMBIE_CHECK_THREADS_VALUE));
         this.zombieCheckTimes = Integer.parseInt(props.getProperty(Constants.ZOMBIE_CHECK_TIMES, Constants.ZOMBIE_CHECK_TIMES_VALUE));
         this.scheduledTime = Integer.parseInt(props.getProperty(Constants.SCHEDULED_TIME, Constants.SCHEDULED_TIME_VALUE));
         this.registerType = shenyuRegisterCenterConfig.getRegisterType();
         zombieRemovalTimes = Integer.parseInt(props.getProperty(Constants.ZOMBIE_REMOVAL_TIMES, Constants.ZOMBIE_REMOVAL_TIMES_VALUE));
-        if (REGISTER_TYPE_HTTP.equalsIgnoreCase(registerType)) {
-            setup();
-        }
     }
 
     /**
      * Set up.
      */
     public void setup() {
-        if (checked) {
+        if (REGISTER_TYPE_HTTP.equalsIgnoreCase(registerType) && checked) {
+            LOG.info("setup upstream check task");
             this.fetchUpstreamData();
             executor = new ScheduledThreadPoolExecutor(1, ShenyuThreadFactory.create("scheduled-upstream-task", false));
             scheduledFuture = executor.scheduleWithFixedDelay(this::scheduled, 10, scheduledTime, TimeUnit.SECONDS);
+
+            ThreadFactory requestFactory = ShenyuThreadFactory.create("upstream-health-check-request", true);
+            invokeExecutor = new ScheduledThreadPoolExecutor(this.scheduledThreads, requestFactory);
         }
     }
 
@@ -159,8 +177,12 @@ public class UpstreamCheckService {
     @PreDestroy
     public void close() {
         if (checked) {
-            scheduledFuture.cancel(false);
-            executor.shutdown();
+            if (Objects.nonNull(scheduledFuture)) {
+                scheduledFuture.cancel(false);
+            }
+            if (Objects.nonNull(executor)) {
+                executor.shutdown();
+            }
         }
     }
 
@@ -174,18 +196,26 @@ public class UpstreamCheckService {
     }
 
     /**
-     * Submit.
+     * Submit client health check.
      *
      * @param selectorId     the selector id
      * @param commonUpstream the common upstream
-     * @return whether this module handles
      */
-    public boolean submit(final String selectorId, final CommonUpstream commonUpstream) {
+    public void submit(final String selectorId, final CommonUpstream commonUpstream) {
         if (!REGISTER_TYPE_HTTP.equalsIgnoreCase(registerType) || !checked) {
-            return false;
+            return;
         }
 
-        List<CommonUpstream> upstreams = UPSTREAM_MAP.computeIfAbsent(selectorId, k -> new CopyOnWriteArrayList<>());
+        Optional.ofNullable(submitJust(selectorId, commonUpstream))
+                .ifPresent(upstreams -> executor.execute(() -> updateHandler(selectorId, upstreams, upstreams)));
+    }
+
+    private List<CommonUpstream> submitJust(final String selectorId, final CommonUpstream commonUpstream) {
+        if (!REGISTER_TYPE_HTTP.equalsIgnoreCase(registerType) || !checked) {
+            return null;
+        }
+
+        List<CommonUpstream> upstreams = MapUtils.computeIfAbsent(UPSTREAM_MAP, selectorId, k -> new CopyOnWriteArrayList<>());
         if (commonUpstream.isStatus()) {
             Optional<CommonUpstream> exists = upstreams.stream().filter(item -> StringUtils.isNotBlank(item.getUpstreamUrl())
                     && item.getUpstreamUrl().equals(commonUpstream.getUpstreamUrl())).findFirst();
@@ -199,10 +229,9 @@ public class UpstreamCheckService {
             upstreams.removeIf(item -> item.equals(commonUpstream));
             PENDING_SYNC.add(NumberUtils.INTEGER_ZERO);
         }
-        executor.execute(() -> updateHandler(selectorId, upstreams, upstreams));
-        return true;
+        return upstreams;
     }
-    
+
     /**
      * If the health check passes, the service will be added to
      * the normal service list; if the health check fails, the service
@@ -212,7 +241,7 @@ public class UpstreamCheckService {
      * that do not register with the gateway by listening to
      * {@link org.springframework.context.event.ContextRefreshedEvent},
      * which will cause some problems,
-     * check https://github.com/apache/shenyu/issues/3484 for more details.
+     * check <a href="https://github.com/apache/shenyu/issues/3484">...</a> for more details.
      *
      * @param selectorId     the selector id
      * @param commonUpstream the common upstream
@@ -221,7 +250,8 @@ public class UpstreamCheckService {
     public boolean checkAndSubmit(final String selectorId, final CommonUpstream commonUpstream) {
         final boolean pass = UpstreamCheckUtils.checkUrl(commonUpstream.getUpstreamUrl());
         if (pass) {
-            return submit(selectorId, commonUpstream);
+            this.submit(selectorId, commonUpstream);
+            return false;
         }
         ZOMBIE_SET.add(ZombieUpstream.transform(commonUpstream, zombieCheckTimes, selectorId));
         LOG.error("add zombie node, url={}", commonUpstream.getUpstreamUrl());
@@ -243,18 +273,37 @@ public class UpstreamCheckService {
 
     private void scheduled() {
         try {
-            if (!ZOMBIE_SET.isEmpty()) {
-                ZOMBIE_SET.parallelStream().forEach(this::checkZombie);
-            }
-            if (!UPSTREAM_MAP.isEmpty()) {
-                UPSTREAM_MAP.forEach(this::check);
-            }
+            doCheck();
+            waitFinish();
         } catch (Exception e) {
             LOG.error("upstream scheduled check error -------- ", e);
         }
     }
 
+    private void doCheck() {
+        // check zombie
+        if (!ZOMBIE_SET.isEmpty()) {
+            ZOMBIE_SET.forEach(this::checkZombie);
+        }
+        // check up
+        if (!UPSTREAM_MAP.isEmpty()) {
+            UPSTREAM_MAP.forEach(this::check);
+        }
+    }
+
+    private void waitFinish() {
+        // wait all check success
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        // clear, for next time
+        futures.clear();
+    }
+
     private void checkZombie(final ZombieUpstream zombieUpstream) {
+        CompletableFuture<Void> future = CompletableFuture.runAsync(() -> checkZombie0(zombieUpstream), invokeExecutor);
+        futures.add(future);
+    }
+
+    private void checkZombie0(final ZombieUpstream zombieUpstream) {
         ZOMBIE_SET.remove(zombieUpstream);
         String selectorId = zombieUpstream.getSelectorId();
         CommonUpstream commonUpstream = zombieUpstream.getCommonUpstream();
@@ -264,7 +313,8 @@ public class UpstreamCheckService {
             commonUpstream.setStatus(true);
             LOG.info("UpstreamCacheManager check zombie upstream success the url: {}, host: {} ", commonUpstream.getUpstreamUrl(), commonUpstream.getUpstreamHost());
             List<CommonUpstream> old = ListUtils.unmodifiableList(UPSTREAM_MAP.getOrDefault(selectorId, Collections.emptyList()));
-            this.submit(selectorId, commonUpstream);
+            // fix https://github.com/apache/shenyu/issues/5311
+            this.submitJust(selectorId, commonUpstream);
             updateHandler(selectorId, old, UPSTREAM_MAP.get(selectorId));
         } else {
             LOG.error("check zombie upstream the url={} is fail", commonUpstream.getUpstreamUrl());
@@ -276,23 +326,39 @@ public class UpstreamCheckService {
     }
 
     private void check(final String selectorId, final List<CommonUpstream> upstreamList) {
-        List<CommonUpstream> successList = Lists.newArrayListWithCapacity(upstreamList.size());
+        final List<CompletableFuture<CommonUpstream>> checkFutures = new ArrayList<>(upstreamList.size());
         for (CommonUpstream commonUpstream : upstreamList) {
-            final boolean pass = UpstreamCheckUtils.checkUrl(commonUpstream.getUpstreamUrl());
-            if (pass) {
-                if (!commonUpstream.isStatus()) {
-                    commonUpstream.setTimestamp(System.currentTimeMillis());
-                    commonUpstream.setStatus(true);
-                    LOG.info("UpstreamCacheManager check success the url: {}, host: {} ", commonUpstream.getUpstreamUrl(), commonUpstream.getUpstreamHost());
+            checkFutures.add(CompletableFuture.supplyAsync(() -> {
+                final boolean pass = UpstreamCheckUtils.checkUrl(commonUpstream.getUpstreamUrl());
+                if (pass) {
+                    if (!commonUpstream.isStatus()) {
+                        commonUpstream.setTimestamp(System.currentTimeMillis());
+                        commonUpstream.setStatus(true);
+                        PENDING_SYNC.add(commonUpstream.hashCode());
+                        LOG.info("UpstreamCacheManager check success the url: {}, host: {} ", commonUpstream.getUpstreamUrl(), commonUpstream.getUpstreamHost());
+                    }
+                    return commonUpstream;
+                } else {
+                    commonUpstream.setStatus(false);
+                    ZOMBIE_SET.add(ZombieUpstream.transform(commonUpstream, zombieCheckTimes, selectorId));
+                    LOG.info("change unlive selectorId={}|url={}", selectorId, commonUpstream.getUpstreamUrl());
+                    discoveryUpstreamService.changeStatusBySelectorIdAndUrl(selectorId, commonUpstream.getUpstreamUrl(), Boolean.FALSE);
+                    LOG.error("check the url={} is fail ", commonUpstream.getUpstreamUrl());
                 }
-                successList.add(commonUpstream);
-            } else {
-                commonUpstream.setStatus(false);
-                ZOMBIE_SET.add(ZombieUpstream.transform(commonUpstream, zombieCheckTimes, selectorId));
-                LOG.error("check the url={} is fail ", commonUpstream.getUpstreamUrl());
-            }
+                return null;
+            }, invokeExecutor).exceptionally(ex -> {
+                LOG.error("An exception occurred during the check of url {}: ", commonUpstream.getUpstreamUrl(), ex);
+                return null;
+            }));
         }
-        updateHandler(selectorId, upstreamList, successList);
+
+        this.futures.add(CompletableFuture.runAsync(() -> {
+            List<CommonUpstream> successList = checkFutures.stream()
+                    .map(CompletableFuture::join)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            updateHandler(selectorId, upstreamList, successList);
+        }));
     }
 
     private void updateHandler(final String selectorId, final List<CommonUpstream> upstreamList, final List<CommonUpstream> successList) {
@@ -322,18 +388,51 @@ public class UpstreamCheckService {
         }
 
         PluginDO pluginDO = pluginMapper.selectById(selectorDO.getPluginId());
-        String handler = converterFactor.newInstance(pluginDO.getName()).handler(selectorDO.getHandle(), aliveList);
+        if (Objects.isNull(pluginDO)) {
+            return;
+        }
+        String pluginName = pluginDO.getName();
+        String handler = converterFactor.newInstance(pluginName).handler(selectorDO.getHandle(), aliveList);
         selectorDO.setHandle(handler);
         selectorMapper.updateSelective(selectorDO);
 
         List<ConditionData> conditionDataList = ConditionTransfer.INSTANCE.mapToSelectorDOS(
                 selectorConditionMapper.selectByQuery(new SelectorConditionQuery(selectorDO.getId())));
-        SelectorData selectorData = SelectorDO.transFrom(selectorDO, pluginDO.getName(), conditionDataList);
+        SelectorData selectorData = SelectorDO.transFrom(selectorDO, pluginName, conditionDataList);
         selectorData.setHandle(handler);
 
         // publish change event.
         eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.SELECTOR, DataEventTypeEnum.UPDATE, Collections.singletonList(selectorData)));
 
+        // publish discovery change event.
+        List<DiscoveryUpstreamData> discoveryUpstreamDataList = discoveryUpstreamService.findBySelectorId(selectorId);
+        
+        if (CollectionUtils.isEmpty(discoveryUpstreamDataList)) {
+            discoveryUpstreamDataList = aliveList.stream().map(DiscoveryTransfer.INSTANCE::mapToDiscoveryUpstreamData).collect(Collectors.toList());
+        }
+        
+        discoveryUpstreamDataList.removeIf(u -> {
+            for (CommonUpstream alive : aliveList) {
+                if (alive.getUpstreamUrl().equals(u.getUrl())) {
+                    return false;
+                }
+            }
+            return true;
+        });
+        // change live node status to TRUE
+        discoveryUpstreamDataList.forEach(upstream -> {
+            LOG.info("change alive selectorId={}|url={}", selectorId, upstream.getUrl());
+            discoveryUpstreamService.changeStatusBySelectorIdAndUrl(selectorId, upstream.getUrl(), Boolean.TRUE);
+        });
+        
+        DiscoverySyncData discoverySyncData = new DiscoverySyncData();
+        discoverySyncData.setUpstreamDataList(discoveryUpstreamDataList);
+        discoverySyncData.setPluginName(pluginName);
+        discoverySyncData.setSelectorId(selectorId);
+        discoverySyncData.setSelectorName(selectorDO.getName());
+        discoverySyncData.setNamespaceId(selectorDO.getNamespaceId());
+        LOG.debug("UpstreamCacheManager update selectorId={}|json={}", selectorId, GsonUtils.getGson().toJson(discoverySyncData));
+        eventPublisher.publishEvent(new DataChangedEvent(ConfigGroupEnum.DISCOVER_UPSTREAM, DataEventTypeEnum.UPDATE, Collections.singletonList(discoverySyncData)));
     }
 
     /**
@@ -349,49 +448,47 @@ public class UpstreamCheckService {
         final List<SelectorDO> selectorDOList = selectorMapper.findByPluginIds(new ArrayList<>(pluginMap.keySet()));
         long currentTimeMillis = System.currentTimeMillis();
         Optional.ofNullable(selectorDOList).orElseGet(ArrayList::new).stream()
-                .filter(selectorDO -> Objects.nonNull(selectorDO) && StringUtils.isNotEmpty(selectorDO.getHandle()))
+                .filter(Objects::nonNull)
                 .forEach(selectorDO -> {
                     String name = pluginMap.get(selectorDO.getPluginId());
-                    List<CommonUpstream> commonUpstreams = converterFactor.newInstance(name).convertUpstream(selectorDO.getHandle())
-                            .stream().filter(upstream -> upstream.isStatus() || upstream.getTimestamp() > currentTimeMillis - TimeUnit.SECONDS.toMillis(zombieRemovalTimes))
-                            .collect(Collectors.toList());
+                    List<CommonUpstream> commonUpstreams = new LinkedList<>();
+                    discoveryUpstreamService.findBySelectorId(selectorDO.getId()).stream()
+                            .map(DiscoveryTransfer.INSTANCE::mapToCommonUpstream)
+                            .forEach(commonUpstreams::add);
+                    String handle = selectorDO.getHandle();
+                    if (StringUtils.isNotEmpty(handle)) {
+                        commonUpstreams.addAll(converterFactor.newInstance(name).convertUpstream(handle)
+                                .stream().filter(upstream -> upstream.isStatus() || upstream.getTimestamp() > currentTimeMillis - TimeUnit.SECONDS.toMillis(zombieRemovalTimes))
+                                .collect(Collectors.toList()));
+                    }
                     if (CollectionUtils.isNotEmpty(commonUpstreams)) {
                         UPSTREAM_MAP.put(selectorDO.getId(), commonUpstreams);
                         PENDING_SYNC.add(NumberUtils.INTEGER_ZERO);
                     }
                 });
     }
-    
+
     /**
-     * listen {@link SelectorCreatedEvent} add data permission.
+     * listen {@link DiscoveryStreamUpdatedEvent} add data permission.
      *
      * @param event event
      */
-    @EventListener(SelectorCreatedEvent.class)
-    public void onSelectorCreated(final SelectorCreatedEvent event) {
-        final PluginDO plugin = pluginMapper.selectById(event.getSelector().getPluginId());
-        List<DivideUpstream> existDivideUpstreams = SelectorUtil.buildDivideUpstream(event.getSelector(), plugin.getName());
-        if (CollectionUtils.isNotEmpty(existDivideUpstreams)) {
-            replace(event.getSelector().getId(), CommonUpstreamUtils.convertCommonUpstreamList(existDivideUpstreams));
-        }
-    }
-    
-    /**
-     * listen {@link SelectorCreatedEvent} add data permission.
-     *
-     * @param event event
-     */
-    @EventListener(SelectorUpdatedEvent.class)
-    public void onSelectorUpdated(final SelectorUpdatedEvent event) {
-        final PluginDO plugin = pluginMapper.selectById(event.getSelector().getPluginId());
-        List<DivideUpstream> existDivideUpstreams = SelectorUtil.buildDivideUpstream(event.getSelector(), plugin.getName());
-        if (CollectionUtils.isNotEmpty(existDivideUpstreams)) {
-            replace(event.getSelector().getId(), CommonUpstreamUtils.convertCommonUpstreamList(existDivideUpstreams));
+    @EventListener(DiscoveryStreamUpdatedEvent.class)
+    public void onDiscoveryUpstreamUpdated(final DiscoveryStreamUpdatedEvent event) {
+        DiscoverySyncData discoverySyncData = event.getDiscoverySyncData();
+        LOG.info("onDiscoveryUpstreamUpdated plugin={}|list={}", discoverySyncData.getPluginName(), discoverySyncData.getUpstreamDataList());
+        if (PluginEnum.DIVIDE.getName().equals(discoverySyncData.getPluginName())) {
+            List<DiscoveryUpstreamData> upstreamDataList = discoverySyncData.getUpstreamDataList();
+            List<CommonUpstream> collect = upstreamDataList.stream().map(DiscoveryTransfer.INSTANCE::mapToCommonUpstream).collect(Collectors.toList());
+            List<CommonUpstream> commonUpstreams = CommonUpstreamUtils.convertCommonUpstreamList(collect);
+            LOG.info("UpstreamCacheManager replace selectorId={}|json={}", discoverySyncData.getSelectorId(), GsonUtils.getGson().toJson(commonUpstreams));
+            replace(discoverySyncData.getSelectorId(), commonUpstreams);
         }
     }
 
     /**
      * get the zombie removal time value.
+     *
      * @return zombie removal time value
      */
     public static int getZombieRemovalTimes() {

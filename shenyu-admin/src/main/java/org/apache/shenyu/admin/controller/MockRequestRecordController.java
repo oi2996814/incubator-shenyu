@@ -17,32 +17,32 @@
 
 package org.apache.shenyu.admin.controller;
 
-import java.util.List;
-import javax.validation.Valid;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import org.apache.shenyu.admin.aspect.annotation.RestApi;
+import org.apache.shenyu.admin.mapper.MockRequestRecordMapper;
 import org.apache.shenyu.admin.model.dto.MockRequestRecordDTO;
 import org.apache.shenyu.admin.model.page.PageParameter;
 import org.apache.shenyu.admin.model.query.MockRequestRecordQuery;
 import org.apache.shenyu.admin.model.result.ShenyuAdminResult;
 import org.apache.shenyu.admin.service.MockRequestRecordService;
 import org.apache.shenyu.admin.utils.ShenyuResultMessage;
-import org.springframework.validation.annotation.Validated;
+import org.apache.shenyu.admin.validation.annotation.Existed;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import java.util.List;
 
 /**
  * AlertTemplate MockRequestRecordController.
  */
-@Validated
-@RestController
-@RequestMapping("/mock")
+@RestApi("/mock")
 public class MockRequestRecordController {
 
     private final MockRequestRecordService mockRequestRecordService;
@@ -74,6 +74,17 @@ public class MockRequestRecordController {
     }
 
     /**
+     * delete.
+     * @param id id
+     * @return {@linkplain ShenyuAdminResult}
+     */
+    @DeleteMapping("/{id}")
+    public ShenyuAdminResult delete(@PathVariable @Valid @Existed(provider = MockRequestRecordMapper.class,
+            message = " is not existed") final String id) {
+        return ShenyuAdminResult.success(ShenyuResultMessage.DELETE_SUCCESS, mockRequestRecordService.delete(id));
+    }
+
+    /**
      * findPageByQuery.
      * @param apiId apiId
      * @param host host
@@ -92,5 +103,15 @@ public class MockRequestRecordController {
         PageParameter pageParameter = new PageParameter(currentPage, pageSize);
         return ShenyuAdminResult.success(ShenyuResultMessage.QUERY_SUCCESS, this.mockRequestRecordService.listByPage(new MockRequestRecordQuery(apiId, host, url,
                 pathVariable, header, pageParameter)));
+    }
+
+    /**
+     * get Mock Request.
+     * @param apiId apiId
+     * @return ShenyuAdminResult
+     */
+    @GetMapping("/{apiId}")
+    public ShenyuAdminResult get(@PathVariable final String apiId) {
+        return ShenyuAdminResult.success(ShenyuResultMessage.QUERY_SUCCESS, this.mockRequestRecordService.queryByApiId(apiId));
     }
 }

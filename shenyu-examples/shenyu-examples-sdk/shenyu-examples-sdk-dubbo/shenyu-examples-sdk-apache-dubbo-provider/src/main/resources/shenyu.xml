@@ -20,11 +20,11 @@
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
     <bean id = "apacheDubboServiceBeanListener" class="org.apache.shenyu.client.apache.dubbo.ApacheDubboServiceBeanListener">
-        <constructor-arg ref="clientPropertiesConfig"/>
+        <constructor-arg ref="shenyuClientConfig"/>
         <constructor-arg ref="clientRegisterRepository"/>
     </bean>
 
-    <!-- conifig ShenyuRegisterCenterConfig according to your registerType -->
+    <!-- config ShenyuRegisterCenterConfig according to your registerType -->
     <bean id="shenyuRegisterCenterConfig" class="org.apache.shenyu.register.common.config.ShenyuRegisterCenterConfig">
         <property name="registerType" value="http"/>
         <property name="serverLists" value="http://localhost:9095"/>
@@ -55,5 +55,14 @@
     <bean id="shenyuClientShutdownHook" class="org.apache.shenyu.client.core.shutdown.ShenyuClientShutdownHook">
         <constructor-arg ref="shenyuRegisterCenterConfig"/>
         <constructor-arg ref="clientRegisterRepository"/>
+    </bean>
+
+    <bean id="shenyuClientConfig"
+          class="org.apache.shenyu.register.common.config.ShenyuClientConfig">
+        <property name="client">
+            <map>
+                <entry key="dubbo" value-ref="clientPropertiesConfig"/>
+            </map>
+        </property>
     </bean>
 </beans>

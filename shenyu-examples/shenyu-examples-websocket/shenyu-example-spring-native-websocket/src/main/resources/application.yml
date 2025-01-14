@@ -18,13 +18,14 @@ server:
   address: 0.0.0.0
 
 shenyu:
+  namespace: 649330b6-c2d7-4edc-be8e-8a54df9eb385
   common:
     contextPath: /ws-native
     appName: ws-native
     port: 8868
   register:
-    registerType: http #zookeeper #etcd #nacos #consul
-    serverLists: http://localhost:9095 #localhost:2181 #http://localhost:2379 #localhost:8848
+    registerType: http
+    serverLists: http://localhost:9095
     props:
       username: admin
       password: 123456
@@ -39,14 +40,29 @@ shenyu:
         contextPath: ${shenyu.common.contextPath}
         appName: ${shenyu.common.appName}
         port: ${shenyu.common.port}
-
-
+#  discovery:
+#    enable: true
+#    type: zookeeper
+#    serverList: 127.0.0.1:2181
+#    registerPath: /shenyu/discovery/http_example
+#    props:
+#      baseSleepTimeMilliseconds: 1000
+#      maxRetries: 4
+#      maxSleepTimeMilliseconds: 5000
+#      connectionTimeoutMilliseconds: 60000
+#      sessionTimeoutMilliseconds: 8
+#    type: etcd
+#    serverList: http://127.0.0.1:2379
+#    registerPath: shenyu_discovery_http_example
+#    type: eureka
+#    serverList: http://127.0.0.1:8761/eureka
+#    registerPath: shenyu_discovery_http_example
 
 logging:
   level:
-    root: info
-    org.springframework.boot: info
-    org.apache.ibatis: info
-    org.apache.shenyu.bonuspoint: info
+    root: debug
+    org.springframework.boot: debug
+    org.apache.ibatis: debug
+    org.apache.shenyu.bonuspoint: debug
     org.apache.shenyu.lottery: debug
     org.apache.shenyu: debug

@@ -250,7 +250,7 @@
                 AND type = #{type, jdbcType=INTEGER}
             </if>
         </where>
-      ORDER BY plugin_id,sort
+      ORDER BY plugin_id, sort, id ASC
     </select>
 
     <select id="existed" resultType="java.lang.Boolean">
@@ -261,6 +261,16 @@
     </select>
 
     <select id="selectByPluginIdList" resultType="org.apache.shenyu.admin.model.entity.PluginHandleDO">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM plugin_handle
+        where plugin_id in
+        <foreach item="pluginId" collection="pluginIds" open="(" separator="," close=")">
+            #{pluginId,jdbcType=VARCHAR}
+        </foreach>
+    </select>
+
+    <select id="selectByPluginIds" resultType="org.apache.shenyu.admin.model.entity.PluginHandleDO">
         SELECT
         <include refid="Base_Column_List"/>
         FROM plugin_handle

@@ -37,7 +37,7 @@ public @interface ShenyuSpringCloudClient {
      * @return the string
      */
     @AliasFor(attribute = "path")
-    String value() default "";
+    String[] value() default "";
 
     /**
      * Path string.
@@ -45,7 +45,7 @@ public @interface ShenyuSpringCloudClient {
      * @return the string
      */
     @AliasFor(attribute = "value")
-    String path() default "";
+    String[] path() default "";
 
     /**
      * Rule name string.
@@ -67,4 +67,11 @@ public @interface ShenyuSpringCloudClient {
      * @return the boolean
      */
     boolean enabled() default true;
+    
+    /**
+     * Register meta data boolean.
+     *
+     * @return the boolean
+     */
+    boolean registerMetaData() default true;
 }

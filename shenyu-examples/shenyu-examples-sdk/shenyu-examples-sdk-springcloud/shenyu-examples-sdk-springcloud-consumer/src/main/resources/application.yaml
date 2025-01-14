@@ -19,9 +19,10 @@ server:
     max-http-form-post-size: 100MB
 
 shenyu:
+  namespace: 649330b6-c2d7-4edc-be8e-8a54df9eb385
   register:
-    registerType: http #zookeeper #etcd #nacos #consul
-    serverLists: http://localhost:9095 #localhost:2181 #http://localhost:2379 #localhost:8848
+    registerType: http
+    serverLists: http://localhost:9095
     props:
       username: admin
       password: 123456
@@ -33,8 +34,8 @@ shenyu:
   #          port: 8189
   sdk:
     enabled: true
-    register-type: eureka #local #etcd #nacos #consul
-    server-lists: http://localhost:8761/eureka/ #http://localhost:9095 #http://localhost:2379 #localhost:8848
+    register-type: eureka #zookeeper #local #etcd #nacos #consul
+    server-lists: http://localhost:8761/eureka/ #localhost:2181 #http://localhost:9095 #http://localhost:2379 #localhost:8848
 
 spring:
   servlet:

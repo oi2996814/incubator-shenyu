@@ -53,6 +53,18 @@ public class RuleData {
 
     private List<ConditionData> conditionDataList;
 
+    private List<ConditionData> beforeConditionDataList;
+    
+    /**
+     * match restful.
+     */
+    private Boolean matchRestful;
+    
+    /**
+     * namespaceId.
+     */
+    private String namespaceId;
+
     /**
      * no args constructor.
      */
@@ -75,6 +87,9 @@ public class RuleData {
         this.loged = builder.loged;
         this.handle = builder.handle;
         this.conditionDataList = builder.conditionDataList;
+        this.beforeConditionDataList = builder.beforeConditionDataList;
+        this.matchRestful = builder.matchRestful;
+        this.namespaceId = builder.namespaceId;
     }
 
     /**
@@ -286,24 +301,86 @@ public class RuleData {
         return this;
     }
 
+    /**
+     * get beforeConditionDataList.
+     *
+     * @return beforeConditionDataList
+     */
+    public List<ConditionData> getBeforeConditionDataList() {
+        return beforeConditionDataList;
+    }
+
+    /**
+     * set beforeConditionDataList.
+     *
+     * @param beforeConditionDataList beforeConditionDataList
+     */
+    public void setBeforeConditionDataList(final List<ConditionData> beforeConditionDataList) {
+        this.beforeConditionDataList = beforeConditionDataList;
+    }
+    
+    /**
+     * get match restful.
+     *
+     * @return matchRestful
+     */
+    public Boolean getMatchRestful() {
+        return matchRestful;
+    }
+    
+    /**
+     * set match restful.
+     *
+     * @param matchRestful matchRestful
+     */
+    public void setMatchRestful(final Boolean matchRestful) {
+        this.matchRestful = matchRestful;
+    }
+    
+    /**
+     * get namespaceId.
+     * @return namespaceId
+     */
+    public String getNamespaceId() {
+        return namespaceId;
+    }
+    
+    /**
+     * set namespaceId.
+     * @param namespaceId namespaceId
+     */
+    public void setNamespaceId(final String namespaceId) {
+        this.namespaceId = namespaceId;
+    }
+    
     @Override
     public boolean equals(final Object o) {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (Objects.isNull(o) || getClass() != o.getClass()) {
             return false;
         }
-        RuleData ruleData = (RuleData) o;
-        return Objects.equals(id, ruleData.id) && Objects.equals(name, ruleData.name) && Objects.equals(pluginName, ruleData.pluginName)
-                && Objects.equals(selectorId, ruleData.selectorId) && Objects.equals(matchMode, ruleData.matchMode)
-                && Objects.equals(sort, ruleData.sort) && Objects.equals(enabled, ruleData.enabled) && Objects.equals(loged, ruleData.loged)
-                && Objects.equals(handle, ruleData.handle) && Objects.equals(conditionDataList, ruleData.conditionDataList);
+        final RuleData ruleData = (RuleData) o;
+        return Objects.equals(id, ruleData.id)
+                && Objects.equals(name, ruleData.name)
+                && Objects.equals(pluginName, ruleData.pluginName)
+                && Objects.equals(selectorId, ruleData.selectorId)
+                && Objects.equals(matchMode, ruleData.matchMode)
+                && Objects.equals(sort, ruleData.sort)
+                && Objects.equals(enabled, ruleData.enabled)
+                && Objects.equals(loged, ruleData.loged)
+                && Objects.equals(handle, ruleData.handle)
+                && Objects.equals(conditionDataList, ruleData.conditionDataList)
+                && Objects.equals(beforeConditionDataList, ruleData.beforeConditionDataList)
+                && Objects.equals(matchRestful, ruleData.matchRestful)
+                && Objects.equals(namespaceId, ruleData.namespaceId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, pluginName, selectorId, matchMode, sort, enabled, loged, handle, conditionDataList);
+        return Objects.hash(id, name, pluginName, selectorId, matchMode, sort, enabled, loged, handle, conditionDataList,
+                beforeConditionDataList, matchRestful, namespaceId);
     }
 
     @Override
@@ -334,6 +411,8 @@ public class RuleData {
                 + '\''
                 + ", conditionDataList="
                 + conditionDataList
+                + ", matchRestful="
+                + matchRestful
                 + '}';
     }
 
@@ -361,6 +440,12 @@ public class RuleData {
         private String handle;
 
         private List<ConditionData> conditionDataList;
+
+        private List<ConditionData> beforeConditionDataList;
+        
+        private Boolean matchRestful;
+        
+        private String namespaceId;
 
         /**
          * no args constructor.
@@ -484,6 +569,39 @@ public class RuleData {
          */
         public Builder conditionDataList(final List<ConditionData> conditionDataList) {
             this.conditionDataList = conditionDataList;
+            return this;
+        }
+
+        /**
+         * build conditionDataList.
+         *
+         * @param beforeConditionDataList beforeConditionDataList
+         * @return this
+         */
+        public Builder beforeConditionDataList(final List<ConditionData> beforeConditionDataList) {
+            this.beforeConditionDataList = beforeConditionDataList;
+            return this;
+        }
+    
+        /**
+         * build match restful.
+         *
+         * @param matchRestful matchRestful
+         * @return this
+         */
+        public Builder matchRestful(final Boolean matchRestful) {
+            this.matchRestful = matchRestful;
+            return this;
+        }
+        
+        /**
+         * build namespaceId.
+         *
+         * @param namespaceId namespaceId
+         * @return this
+         */
+        public Builder namespaceId(final String namespaceId) {
+            this.namespaceId = namespaceId;
             return this;
         }
     }

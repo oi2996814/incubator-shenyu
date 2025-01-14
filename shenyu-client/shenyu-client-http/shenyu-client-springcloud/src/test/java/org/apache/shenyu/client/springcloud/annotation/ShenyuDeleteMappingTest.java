@@ -59,8 +59,8 @@ public class ShenyuDeleteMappingTest {
             assertEquals(requestMapping.path()[0], "/{id}");
             ShenyuSpringCloudClient shenyuSpringCloudClient = AnnotatedElementUtils.findMergedAnnotation(method, ShenyuSpringCloudClient.class);
             assertNotNull(shenyuSpringCloudClient);
-            assertEquals(shenyuSpringCloudClient.value(), "/{id}");
-            assertEquals(shenyuSpringCloudClient.path(), "/{id}");
+            assertEquals(shenyuSpringCloudClient.value()[0], "/{id}");
+            assertEquals(shenyuSpringCloudClient.path()[0], "/{id}");
             assertEquals(shenyuSpringCloudClient.ruleName(), "divide");
             assertFalse(shenyuSpringCloudClient.enabled());
             assertEquals(shenyuSpringCloudClient.desc(), "it`s test.");
@@ -71,7 +71,7 @@ public class ShenyuDeleteMappingTest {
 
         @ShenyuDeleteMapping(value = "/{id}", ruleName = "divide", enabled = false, desc = "it`s test.")
         public String delete(@PathVariable final String id) {
-            return "" + id;
+            return id;
         }
     }
 }

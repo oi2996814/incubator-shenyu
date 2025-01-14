@@ -19,6 +19,15 @@ package org.apache.shenyu.client.motan;
 
 import com.weibo.api.motan.config.springsupport.BasicServiceConfigBean;
 import com.weibo.api.motan.config.springsupport.annotation.MotanService;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.shenyu.client.core.client.AbstractContextRefreshedEventListener;
@@ -30,35 +39,27 @@ import org.apache.shenyu.client.motan.common.dto.MotanRpcExt;
 import org.apache.shenyu.common.enums.ApiHttpMethodEnum;
 import org.apache.shenyu.common.enums.RpcTypeEnum;
 import org.apache.shenyu.common.utils.GsonUtils;
-import org.apache.shenyu.common.utils.IpUtils;
 import org.apache.shenyu.register.client.api.ShenyuClientRegisterRepository;
-import org.apache.shenyu.register.common.config.PropertiesConfig;
+import org.apache.shenyu.register.common.config.ShenyuClientConfig;
 import org.apache.shenyu.register.common.dto.MetaDataRegisterDTO;
 import org.apache.shenyu.register.common.dto.URIRegisterDTO;
+import org.apache.shenyu.register.common.enums.EventType;
 import org.javatuples.Sextet;
 import org.springframework.context.ApplicationContext;
-import org.springframework.core.LocalVariableTableParameterNameDiscoverer;
+import org.springframework.core.StandardReflectionParameterNameDiscoverer;
 import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.util.ReflectionUtils;
-
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Motan Service Event Listener.
  */
 public class MotanServiceEventListener extends AbstractContextRefreshedEventListener<Object, ShenyuMotanClient> {
 
-    private static final String BASE_SERVICE_CONFIG = "baseServiceConfig";
+    protected static final String BASE_SERVICE_CONFIG = "baseServiceConfig";
 
-    private final LocalVariableTableParameterNameDiscoverer localVariableTableParameterNameDiscoverer = new LocalVariableTableParameterNameDiscoverer();
+    private final StandardReflectionParameterNameDiscoverer localVariableTableParameterNameDiscoverer = new StandardReflectionParameterNameDiscoverer();
 
     private final ShenyuClientRegisterEventPublisher publisher = ShenyuClientRegisterEventPublisher.getInstance();
 
@@ -66,13 +67,13 @@ public class MotanServiceEventListener extends AbstractContextRefreshedEventList
 
     private String group;
 
-    public MotanServiceEventListener(final PropertiesConfig clientConfig,
+    public MotanServiceEventListener(final ShenyuClientConfig clientConfig,
                                      final ShenyuClientRegisterRepository shenyuClientRegisterRepository) {
         super(clientConfig, shenyuClientRegisterRepository);
     }
 
     @Override
-    protected Sextet<String[], String, String, ApiHttpMethodEnum[], RpcTypeEnum, String> buildApiDocSextet(final Method method, final Annotation annotation) {
+    protected Sextet<String[], String, String, ApiHttpMethodEnum[], RpcTypeEnum, String> buildApiDocSextet(final Method method, final Annotation annotation, final Map<String, Object> beans) {
         ShenyuMotanClient shenyuMotanClient = AnnotatedElementUtils.findMergedAnnotation(method, ShenyuMotanClient.class);
         if (Objects.isNull(shenyuMotanClient)) {
             return null;
@@ -93,16 +94,25 @@ public class MotanServiceEventListener extends AbstractContextRefreshedEventList
     }
 
     @Override
-    protected URIRegisterDTO buildURIRegisterDTO(final ApplicationContext context, final Map<String, Object> beans) {
+    protected URIRegisterDTO buildURIRegisterDTO(final ApplicationContext context,
+                                                 final Map<String, Object> beans,
+                                                 final String namespaceId) {
         return URIRegisterDTO.builder()
                 .contextPath(this.getContextPath())
                 .appName(this.getAppName())
                 .rpcType(RpcTypeEnum.MOTAN.getName())
+                .eventType(EventType.REGISTER)
                 .host(this.getHost())
                 .port(Integer.parseInt(this.getPort()))
+                .namespaceId(namespaceId)
                 .build();
     }
-
+    
+    @Override
+    protected String getClientName() {
+        return RpcTypeEnum.MOTAN.getName();
+    }
+    
     @Override
     protected String buildApiSuperPath(final Class<?> clazz, final ShenyuMotanClient shenyuMotanClient) {
         if (Objects.nonNull(shenyuMotanClient) && !StringUtils.isBlank(shenyuMotanClient.path())) {
@@ -117,19 +127,96 @@ public class MotanServiceEventListener extends AbstractContextRefreshedEventList
     }
 
     @Override
-    protected MetaDataRegisterDTO buildMetaDataDTO(final Object bean, final ShenyuMotanClient shenyuMotanClient, final String superPath, final Class<?> clazz, final Method method) {
+    protected MetaDataRegisterDTO buildMetaDataDTO(final Object bean,
+                                                   @NonNull final ShenyuMotanClient shenyuMotanClient,
+                                                   final String path,
+                                                   final Class<?> clazz,
+                                                   final Method method,
+                                                   final String namespaceId) {
         Integer timeout = Optional.ofNullable(((BasicServiceConfigBean) applicationContext.getBean(BASE_SERVICE_CONFIG)).getRequestTimeout()).orElse(1000);
         MotanService service = AnnotatedElementUtils.findMergedAnnotation(clazz, MotanService.class);
-        String path = superPath.contains("*") ? pathJoin(getContextPath(), superPath.replace("*", ""), method.getName()) : pathJoin(getContextPath(), superPath, shenyuMotanClient.path());
         String desc = shenyuMotanClient.desc();
-        String host = IpUtils.isCompleteHost(this.getHost()) ? this.getHost() : IpUtils.getHost(this.getHost());
-        int port = StringUtils.isBlank(this.getPort()) ? -1 : Integer.parseInt(this.getPort());
         String configRuleName = shenyuMotanClient.ruleName();
         String ruleName = ("".equals(configRuleName)) ? path : configRuleName;
         String methodName = method.getName();
         Class<?>[] parameterTypesClazz = method.getParameterTypes();
         String parameterTypes = Arrays.stream(parameterTypesClazz).map(Class::getName)
                 .collect(Collectors.joining(","));
+        String serviceName = getServiceName(clazz, service);
+        String protocol = StringUtils.isNotEmpty(service.protocol()) ? service.protocol() : (getProtocolFromExport());
+        return MetaDataRegisterDTO.builder()
+                .appName(this.getAppName())
+                .serviceName(serviceName)
+                .methodName(methodName)
+                .contextPath(this.getContextPath())
+                .path(path)
+                .port(Integer.parseInt(super.getPort()))
+                .host(super.getHost())
+                .ruleName(ruleName)
+                .pathDesc(desc)
+                .parameterTypes(parameterTypes)
+                .rpcType(RpcTypeEnum.MOTAN.getName())
+                .rpcExt(buildRpcExt(method, timeout, protocol))
+                .enabled(shenyuMotanClient.enabled())
+                .namespaceId(namespaceId)
+                .build();
+    }
+
+    @Override
+    protected String buildApiPath(final Method method,
+                                  final String superPath,
+                                  @Nullable final ShenyuMotanClient methodShenyuClient) {
+        return superPath.contains("*")
+                ? pathJoin(this.getContextPath(), superPath.replace("*", ""), method.getName())
+                : pathJoin(this.getContextPath(), superPath, Objects.requireNonNull(methodShenyuClient).path());
+    }
+
+    @Override
+    protected void handleClass(final Class<?> clazz, final Object bean, final ShenyuMotanClient beanShenyuClient, final String superPath) {
+        Method[] methods = ReflectionUtils.getDeclaredMethods(clazz);
+        List<String> namespaceIds = super.getNamespace();
+        for (String namespaceId : namespaceIds) {
+            for (Method method : methods) {
+                final MetaDataRegisterDTO metaData = buildMetaDataDTO(bean, beanShenyuClient,
+                        buildApiPath(method, superPath, null), clazz, method, namespaceId);
+                publisher.publishEvent(metaData);
+                getMetaDataMap().put(method, metaData);
+            }
+        }
+    }
+
+    private MotanRpcExt.RpcExt buildRpcExt(final Method method) {
+        String[] paramNames = localVariableTableParameterNameDiscoverer.getParameterNames(method);
+        List<Pair<String, String>> params = new ArrayList<>();
+        if (Objects.nonNull(paramNames) && paramNames.length > 0) {
+            Class<?>[] paramTypes = method.getParameterTypes();
+            for (int i = 0; i < paramNames.length; i++) {
+                params.add(Pair.of(paramTypes[i].getName(), paramNames[i]));
+            }
+        }
+        return new MotanRpcExt.RpcExt(method.getName(), params);
+    }
+
+    private String buildRpcExt(final Method method, final Integer timeout, final String rpcProtocol) {
+        List<MotanRpcExt.RpcExt> list = new ArrayList<>();
+        list.add(buildRpcExt(method));
+        MotanRpcExt buildList = new MotanRpcExt(list, group, timeout, rpcProtocol);
+        return GsonUtils.getInstance().toJson(buildList);
+    }
+
+    /**
+     * Get the protocol from BasicServiceConfigBean export.
+     * @return rpc protocol
+     */
+    private String getProtocolFromExport() {
+        String export = Optional.ofNullable(((BasicServiceConfigBean) applicationContext.getBean(BASE_SERVICE_CONFIG)).getExport()).orElse("");
+        if (StringUtils.isNotEmpty(export) && export.contains(":")) {
+            return export.split(":")[0];
+        }
+        return "motan2";
+    }
+
+    private String getServiceName(final Class<?> clazz, @Nullable final MotanService service) {
         String serviceName;
         if (void.class.equals(service.interfaceClass())) {
             if (clazz.getInterfaces().length > 0) {
@@ -141,54 +228,6 @@ public class MotanServiceEventListener extends AbstractContextRefreshedEventList
         } else {
             serviceName = service.interfaceClass().getName();
         }
-        return MetaDataRegisterDTO.builder()
-                .appName(this.getAppName())
-                .serviceName(serviceName)
-                .methodName(methodName)
-                .contextPath(this.getContextPath())
-                .path(path)
-                .port(port)
-                .host(host)
-                .ruleName(ruleName)
-                .pathDesc(desc)
-                .parameterTypes(parameterTypes)
-                .rpcType(RpcTypeEnum.MOTAN.getName())
-                .rpcExt(buildRpcExt(method, timeout))
-                .enabled(shenyuMotanClient.enabled())
-                .build();
-    }
-
-    @Override
-    protected String buildApiPath(final Method method, final String superPath, final ShenyuMotanClient methodShenyuClient) {
-        return superPath.contains("*")
-                ? pathJoin(this.getContextPath(), superPath.replace("*", ""), method.getName())
-                : pathJoin(this.getContextPath(), superPath, methodShenyuClient.path());
-    }
-
-    @Override
-    protected void handleClass(final Class<?> clazz, final Object bean, final ShenyuMotanClient beanShenyuClient, final String superPath) {
-        Method[] methods = ReflectionUtils.getDeclaredMethods(clazz);
-        for (Method method : methods) {
-            publisher.publishEvent(buildMetaDataDTO(bean, beanShenyuClient, superPath, clazz, method));
-        }
-    }
-
-    private MotanRpcExt.RpcExt buildRpcExt(final Method method) {
-        String[] paramNames = localVariableTableParameterNameDiscoverer.getParameterNames(method);
-        List<Pair<String, String>> params = new ArrayList<>();
-        if (paramNames != null && paramNames.length > 0) {
-            Class<?>[] paramTypes = method.getParameterTypes();
-            for (int i = 0; i < paramNames.length; i++) {
-                params.add(Pair.of(paramTypes[i].getName(), paramNames[i]));
-            }
-        }
-        return new MotanRpcExt.RpcExt(method.getName(), params);
-    }
-
-    private String buildRpcExt(final Method method, final Integer timeout) {
-        List<MotanRpcExt.RpcExt> list = new ArrayList<>();
-        list.add(buildRpcExt(method));
-        MotanRpcExt buildList = new MotanRpcExt(list, group, timeout);
-        return GsonUtils.getInstance().toJson(buildList);
+        return serviceName;
     }
 }

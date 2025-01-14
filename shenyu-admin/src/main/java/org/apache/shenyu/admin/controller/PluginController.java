@@ -18,6 +18,7 @@
 package org.apache.shenyu.admin.controller;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.shenyu.admin.aspect.annotation.RestApi;
 import org.apache.shenyu.admin.mapper.PluginMapper;
 import org.apache.shenyu.admin.model.dto.BatchCommonDTO;
 import org.apache.shenyu.admin.model.dto.PluginDTO;
@@ -29,43 +30,34 @@ import org.apache.shenyu.admin.model.result.ShenyuAdminResult;
 import org.apache.shenyu.admin.model.vo.PluginVO;
 import org.apache.shenyu.admin.service.PageService;
 import org.apache.shenyu.admin.service.PluginService;
-import org.apache.shenyu.admin.service.SyncDataService;
 import org.apache.shenyu.admin.utils.ShenyuResultMessage;
 import org.apache.shenyu.admin.validation.annotation.Existed;
 import org.apache.shenyu.common.dto.PluginData;
-import org.apache.shenyu.common.enums.DataEventTypeEnum;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.Valid;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 /**
  * this is plugin controller.
  */
-@Validated
-@RestController
-@RequestMapping("/plugin")
+@RestApi("/plugin-template")
 public class PluginController implements PagedController<PluginQueryCondition, PluginVO> {
-    
+
     private final PluginService pluginService;
     
-    private final SyncDataService syncDataService;
-    
-    public PluginController(final PluginService pluginService, final SyncDataService syncDataService) {
+    public PluginController(final PluginService pluginService) {
         this.pluginService = pluginService;
-        this.syncDataService = syncDataService;
     }
     
     /**
@@ -110,7 +102,7 @@ public class PluginController implements PagedController<PluginQueryCondition, P
         PluginVO pluginVO = pluginService.findById(id);
         return ShenyuAdminResult.success(ShenyuResultMessage.DETAIL_SUCCESS, pluginVO);
     }
-    
+
     /**
      * create plugin.
      *
@@ -119,9 +111,10 @@ public class PluginController implements PagedController<PluginQueryCondition, P
      */
     @PostMapping("")
     @RequiresPermissions("system:plugin:add")
-    public ShenyuAdminResult createPlugin(@Valid @RequestBody final PluginDTO pluginDTO) {
+    public ShenyuAdminResult createPlugin(@Valid @ModelAttribute final PluginDTO pluginDTO) {
         return ShenyuAdminResult.success(pluginService.createOrUpdate(pluginDTO));
     }
+
     
     /**
      * update plugin.
@@ -135,10 +128,11 @@ public class PluginController implements PagedController<PluginQueryCondition, P
     public ShenyuAdminResult updatePlugin(@PathVariable("id")
                                           @Existed(message = "plugin is not existed",
                                                   provider = PluginMapper.class) final String id,
-                                          @Valid @RequestBody final PluginDTO pluginDTO) {
+                                          @Valid @ModelAttribute final PluginDTO pluginDTO) {
         pluginDTO.setId(id);
         return createPlugin(pluginDTO);
     }
+
 
     /**
      * create plugin resource.
@@ -187,36 +181,7 @@ public class PluginController implements PagedController<PluginQueryCondition, P
         }
         return ShenyuAdminResult.success(ShenyuResultMessage.ENABLE_SUCCESS);
     }
-    
-    /**
-     * sync plugins.
-     *
-     * @return {@linkplain ShenyuAdminResult}
-     */
-    @PostMapping("/syncPluginAll")
-    @RequiresPermissions("system:plugin:modify")
-    public ShenyuAdminResult syncPluginAll() {
-        boolean success = syncDataService.syncAll(DataEventTypeEnum.REFRESH);
-        if (success) {
-            return ShenyuAdminResult.success(ShenyuResultMessage.SYNC_SUCCESS);
-        } else {
-            return ShenyuAdminResult.error(ShenyuResultMessage.SYNC_FAIL);
-        }
-    }
-    
-    /**
-     * Sync plugin data.
-     *
-     * @param id the id
-     * @return the mono
-     */
-    @PutMapping("/syncPluginData/{id}")
-    public ShenyuAdminResult syncPluginData(@PathVariable("id")
-                                            @Existed(message = "plugin is not existed",
-                                                    provider = PluginMapper.class) final String id) {
-        return ShenyuAdminResult.success(syncDataService.syncPluginData(id) ? ShenyuResultMessage.SYNC_SUCCESS : ShenyuResultMessage.SYNC_FAIL);
-    }
-    
+
     /**
      * active plugin snapshot.
      *
